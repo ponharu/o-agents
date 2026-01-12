@@ -1,0 +1,19 @@
+pre-commit:
+  commands:
+    lint-staged:
+      run: nr lint-staged
+
+pre-push:
+  commands:
+    typecheck:
+      run: bun run typecheck
+
+post-merge:
+  parallel: false
+  commands:
+    mise-install:
+      glob: "mise.toml"
+      run: mise install || (mise plugins update && mise install)
+    deps-install:
+      glob: "{package.json,*.lock}"
+      run: ni
