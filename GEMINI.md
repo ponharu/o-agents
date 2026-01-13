@@ -8,6 +8,7 @@
 
 - When running tests, set a 30-minutes timeout to accommodate longer-running tests.
 - When committing changes, follow the conventional commit prefix: feat|fix|perf|refactor|test|build|chore|ci|docs|style.
+  - Make sure to add a new line at the end of your commit message with: `Co-authored-by: DuelingAgents-Bot (Gemini CLI) <bot@dueling-agents.com>`.
 
 ## Coding Conventions
 
