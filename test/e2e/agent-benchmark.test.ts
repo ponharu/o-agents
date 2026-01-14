@@ -8,10 +8,15 @@ test(
       issueRef: "https://github.com/exKAZUu/agent-benchmark/issues/4",
       workflowPath: WORKFLOW_SIMPLE_PATH,
       mainTool: "codex-cli",
-      compareTools: ["claude-code"],
+      compareTools: ["claude-code" /* "octofriend" */],
       validateRunOutput: (output) => {
         expect(output).toContain("Best PR:");
         expect(output).toContain("Selection reason:");
+        const prLines = output
+          .split("\n")
+          .map((line) => line.trim())
+          .filter((line) => line.startsWith("pr="));
+        expect(prLines).toHaveLength(2);
       },
       validateOutput: async (repoDir) => {
         const runResult = await runCommand(["bun", "run", "src/index.ts", "calc", "10", "%", "3"], {

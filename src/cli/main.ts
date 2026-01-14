@@ -292,11 +292,17 @@ async function runInitializationCommand(initCommand: string, cwd: string): Promi
   const trimmed = initCommand.trim();
   if (!trimmed) return;
   const { command, args } = splitCommandLine(trimmed);
-  await runCommandWithOutput(command, args, {
-    cwd,
-    stream: true,
-    throwOnError: true,
-  });
+  const run = () =>
+    runCommandWithOutput(command, args, {
+      cwd,
+      stream: true,
+      throwOnError: true,
+    });
+  if (shouldSerializeInitCommand(command, args)) {
+    await runInitCommandSerially(run);
+    return;
+  }
+  await run();
 }
 
 function splitCommandLine(value: string): { command: string; args: string[] } {
@@ -356,6 +362,28 @@ function splitCommandLine(value: string): { command: string; args: string[] } {
     throw new Error("Init command cannot be empty.");
   }
   return { command, args: rest };
+}
+
+let initCommandLock: Promise<void> = Promise.resolve();
+
+async function runInitCommandSerially<T>(task: () => Promise<T>): Promise<T> {
+  const prior = initCommandLock;
+  let release!: () => void;
+  initCommandLock = new Promise((resolve) => {
+    release = resolve;
+  });
+  await prior;
+  try {
+    return await task();
+  } finally {
+    release();
+  }
+}
+
+function shouldSerializeInitCommand(command: string, args: string[]): boolean {
+  if (command === "bunx") return true;
+  if (command === "bun" && args[0] === "x") return true;
+  return false;
 }
 
 async function comparePullRequestsIfNeeded(options: {

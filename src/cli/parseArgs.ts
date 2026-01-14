@@ -2,11 +2,12 @@ import { Command } from "commander";
 
 import type { AgentTool, ParsedArgs, WorkflowSpec } from "../types.ts";
 
-const AGENT_CHOICES = ["codex-cli", "claude-code", "gemini-cli"] as const;
+const AGENT_CHOICES = ["codex-cli", "claude-code", "gemini-cli", "octofriend"] as const;
 const AGENT_ALIASES: Record<string, AgentTool> = {
   codex: "codex-cli",
   claude: "claude-code",
   gemini: "gemini-cli",
+  octo: "octofriend",
 };
 const DEFAULT_MAIN_WORKFLOW = "o-agents/workflowNoTest.ts";
 const DEFAULT_INIT_COMMAND = "bunx --bun @antfu/ni@latest";

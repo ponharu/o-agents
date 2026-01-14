@@ -1,26 +1,30 @@
 import type { AgentTool } from "../types.ts";
+import { hasNodeRuntime } from "../utils/runtime.ts";
 
 export function buildAgentCommand(
   tool: AgentTool,
   prompt: string,
 ): { command: string; args: string[] } {
+  const { command, argsPrefix } = resolvePackageRunner();
   switch (tool) {
     case "codex-cli":
       return {
-        command: "bunx",
+        command,
         args: [
-          "--bun",
+          ...argsPrefix,
           "@openai/codex@latest",
           "exec",
           "--dangerously-bypass-approvals-and-sandbox",
           prompt,
         ],
       };
+    case "octofriend":
+      return buildOctofriendCommand(prompt);
     case "claude-code":
       return {
-        command: "bunx",
+        command,
         args: [
-          "--bun",
+          ...argsPrefix,
           "@anthropic-ai/claude-code@latest",
           "--dangerously-skip-permissions",
           "--allowed-tools",
@@ -31,9 +35,9 @@ export function buildAgentCommand(
       };
     case "gemini-cli":
       return {
-        command: "bunx",
+        command,
         args: [
-          "--bun",
+          ...argsPrefix,
           "@google/gemini-cli@latest",
           // Because Gemini CLI frequently gets stuck, we need to debug it more easily.
           "--debug",
@@ -45,4 +49,24 @@ export function buildAgentCommand(
         ],
       };
   }
+}
+
+let cachedRunner: { command: string; argsPrefix: string[] } | undefined;
+
+function resolvePackageRunner(): { command: string; argsPrefix: string[] } {
+  if (cachedRunner) return cachedRunner;
+  cachedRunner = hasNodeRuntime()
+    ? { command: "npx", argsPrefix: [] }
+    : { command: "bunx", argsPrefix: ["--bun"] };
+  return cachedRunner;
+}
+
+function buildOctofriendCommand(prompt: string): { command: string; args: string[] } {
+  if (!hasNodeRuntime()) {
+    throw new Error("octofriend requires Node.js to be installed.");
+  }
+  return {
+    command: "npx",
+    args: ["--yes", "octofriend@latest", prompt],
+  };
 }
