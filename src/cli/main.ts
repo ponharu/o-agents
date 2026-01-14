@@ -20,7 +20,7 @@ import { buildComparePullRequestsPrompt, comparePullRequestsSchema } from "../ag
 import type { AgentTool, IssueData, ParsedArgs, WorkKind, WorkflowSpec } from "../types.ts";
 import { getErrorMessage } from "../utils/error.ts";
 import { formatRunTimestamp } from "../utils/time.ts";
-import { setCommandConcurrency } from "../utils/run.ts";
+import { runCommandWithOutput, setCommandConcurrency } from "../utils/run.ts";
 
 type WorkflowFunction = (
   context: {
@@ -113,6 +113,7 @@ export async function main(): Promise<void> {
             issueData,
             branchTimestamp,
             workflowLogPath,
+            initCommand: args.initCommand,
             onWorktreeCreated: (worktreePath) => {
               activeWorktrees.add(worktreePath);
             },
@@ -214,6 +215,7 @@ async function executeWorkflowRun(options: {
   issueData: IssueData;
   branchTimestamp: string;
   workflowLogPath: string;
+  initCommand: string;
   onWorktreeCreated?: (worktreePath: string) => void;
 }): Promise<WorkflowRunResult> {
   const {
@@ -225,6 +227,7 @@ async function executeWorkflowRun(options: {
     issueData,
     branchTimestamp,
     workflowLogPath,
+    initCommand,
     onWorktreeCreated,
   } = options;
   const cwd = process.cwd();
@@ -248,6 +251,7 @@ async function executeWorkflowRun(options: {
     worktreePath = createdWorktreePath;
     onWorktreeCreated?.(createdWorktreePath);
     createdBranch = branchName;
+    await runInitializationCommand(initCommand, createdWorktreePath);
 
     const workflow = await loadWorkflow(runPlan.spec.workflow);
     workflowPath = workflow.workflowPath;
@@ -282,6 +286,76 @@ async function executeWorkflowRun(options: {
     exitCode,
     error: errorMessage,
   };
+}
+
+async function runInitializationCommand(initCommand: string, cwd: string): Promise<void> {
+  const trimmed = initCommand.trim();
+  if (!trimmed) return;
+  const { command, args } = splitCommandLine(trimmed);
+  await runCommandWithOutput(command, args, {
+    cwd,
+    stream: true,
+    throwOnError: true,
+  });
+}
+
+function splitCommandLine(value: string): { command: string; args: string[] } {
+  const args: string[] = [];
+  let current = "";
+  let quote: '"' | "'" | undefined;
+  let escaping = false;
+
+  for (const char of value) {
+    if (escaping) {
+      current += char;
+      escaping = false;
+      continue;
+    }
+
+    if (char === "\\" && quote !== "'") {
+      escaping = true;
+      continue;
+    }
+
+    if (quote) {
+      if (char === quote) {
+        quote = undefined;
+        continue;
+      }
+      current += char;
+      continue;
+    }
+
+    if (char === '"' || char === "'") {
+      quote = char;
+      continue;
+    }
+
+    if (/\s/.test(char)) {
+      if (current) {
+        args.push(current);
+        current = "";
+      }
+      continue;
+    }
+
+    current += char;
+  }
+
+  if (escaping) {
+    current += "\\";
+  }
+  if (quote) {
+    throw new Error(`Init command has an unterminated ${quote} quote.`);
+  }
+  if (current) {
+    args.push(current);
+  }
+  const [command, ...rest] = args;
+  if (!command) {
+    throw new Error("Init command cannot be empty.");
+  }
+  return { command, args: rest };
 }
 
 async function comparePullRequestsIfNeeded(options: {

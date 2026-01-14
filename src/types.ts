@@ -31,6 +31,7 @@ export type ParsedArgs = {
   compare?: WorkflowSpec[];
   concurrency: number;
   commandConcurrency?: number;
+  initCommand: string;
 };
 
 export type RunOptions = {

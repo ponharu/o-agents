@@ -1,5 +1,4 @@
 import type { AgentTool } from "../types.ts";
-import { hasNodeRuntime } from "../utils/runtime.ts";
 
 export function buildAgentCommand(
   tool: AgentTool,
@@ -56,8 +55,6 @@ let cachedRunner: { command: string; argsPrefix: string[] } | undefined;
 
 function resolvePackageRunner(): { command: string; argsPrefix: string[] } {
   if (cachedRunner) return cachedRunner;
-  cachedRunner = hasNodeRuntime()
-    ? { command: "npx", argsPrefix: [] }
-    : { command: "bunx", argsPrefix: ["--bun"] };
+  cachedRunner = { command: "bunx", argsPrefix: ["--bun"] };
   return cachedRunner;
 }

@@ -9,6 +9,7 @@ const AGENT_ALIASES: Record<string, AgentTool> = {
   gemini: "gemini-cli",
 };
 const DEFAULT_MAIN_WORKFLOW = "o-agents/workflowNoTest.ts";
+const DEFAULT_INIT_COMMAND = "bunx --bun @antfu/ni@latest";
 
 const USAGE = `o-agents
 
@@ -18,6 +19,7 @@ Usage:
   o-agents --target <issue/PR> --main <agent>
   o-agents --target <issue/PR> --main <agent> --concurrency <n>
   o-agents --target <issue/PR> --main <agent> --command-concurrency <n>
+  o-agents --target <issue/PR> --main <agent> --init <command>
 `;
 
 export function parseArgs(argv: string[]): ParsedArgs {
@@ -37,6 +39,11 @@ export function parseArgs(argv: string[]): ParsedArgs {
       "Max concurrent external commands started by workflows",
       parseConcurrency,
     )
+    .option(
+      "--init <command>",
+      "Initialization command to run in each worktree",
+      DEFAULT_INIT_COMMAND,
+    )
     .option("--compare <values...>", "Comparison workflow spec(s): <agent> [workflow] [params]")
     .showHelpAfterError()
     .allowExcessArguments(false)
@@ -50,6 +57,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
     compare?: string[];
     concurrency: number;
     commandConcurrency?: number;
+    init: string;
   }>();
   const target = normalizeTargetValue(options.target);
   if (!target) {
@@ -91,6 +99,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
     compare,
     concurrency: options.concurrency,
     commandConcurrency: options.commandConcurrency,
+    initCommand: options.init,
   };
 }
 
