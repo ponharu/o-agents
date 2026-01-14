@@ -7,7 +7,7 @@ export const RESULT_DELIVERY_INSTRUCTION = "{RESULT_DELIVERY_INSTRUCTION}";
 
 export function buildPlanPrompt({ issueData }: { issueData: IssueData }): string {
   return `
-Create an implementation plan for modifying files in the current repository to resolve the request below, and post the plan as markdown content to the web server described below.
+Create an implementation plan for modifying files in the current repository to resolve the request below, and deliver the plan as markdown content using the response instructions that follow.
 
 Request:
 ~~~~yaml
@@ -54,7 +54,7 @@ ${RESULT_DELIVERY_INSTRUCTION}`.trim();
 
 export function buildReviewPrompt({ headBranch }: { headBranch: string }): string {
   return `
-Review the changes from the current branch compared to the \`${headBranch}\` branch, and post the review comments as a JSON array to the web server described below.
+Review the changes from the current branch compared to the \`${headBranch}\` branch, and deliver the review comments as a JSON array using the response instructions that follow.
 
 ${RESULT_DELIVERY_INSTRUCTION}`.trim();
 }
@@ -65,7 +65,7 @@ export function buildReviewResolutionPrompt({
   reviewComments: unknown[];
 }): string {
   return `
-Address the review comments below, and post a response to each comment as a JSON array to the web server described below.
+Address the review comments below, and deliver a response to each comment as a JSON array using the response instructions that follow.
 
 Review comments:
 ~~~~yaml
@@ -121,7 +121,7 @@ export function buildComparePullRequestsPrompt({
   return `
 Compare the pull requests below and select the best implementation based on the rubric.
 If any improvements from other PRs are worth integrating, move to the worktree directory of the best PR, manually apply the improvements, commit, and push the updates.
-Finally, post a JSON response to the web server with the best PR URL (or "N/A" if none are acceptable) and a brief reason.
+Finally, deliver a JSON response with the best PR URL (or "N/A" if none are acceptable) and a brief reason using the response instructions that follow.
 
 Rubric (prioritize in order):
 1. Correctness: Fully addresses the issue request without introducing bugs.
