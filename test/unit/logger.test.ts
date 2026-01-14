@@ -1,12 +1,12 @@
 import { expect, test } from "bun:test";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
-import os from "node:os";
+import { readFile, rm } from "node:fs/promises";
 import path from "node:path";
 
 import { logger } from "../../src/utils/logger.ts";
+import { createTestSubDir } from "../../src/utils/testDir.ts";
 
 test("logger logs full prompt to file when console output is truncated", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "o-agents-logger-"));
+  const tempDir = createTestSubDir("logger");
   const logPath = path.join(tempDir, "run.log");
 
   try {
@@ -26,7 +26,7 @@ test("logger logs full prompt to file when console output is truncated", async (
 });
 
 test("logger runWithContext scopes output to extra log paths with prefix", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "o-agents-logger-"));
+  const tempDir = createTestSubDir("logger");
   const logPath = path.join(tempDir, "run.log");
   const extraLogPath = path.join(tempDir, "workflow.log");
 

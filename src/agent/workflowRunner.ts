@@ -179,11 +179,13 @@ export function buildResponseInstruction(
   cwd: string,
 ): { instruction: string; logFilePath: string } {
   const timestamp = formatRunTimestamp();
-  const logDirPath = join(cwd, O_AGENTS_DIR, "logs");
+  const oAgentsDir = join(cwd, O_AGENTS_DIR);
+  const logDirPath = join(oAgentsDir, "logs", timestamp);
   const logFilePath =
-    responseMode === "file"
-      ? join(cwd, `.o-agents-response-${timestamp}.log`)
-      : join(logDirPath, `${timestamp}-response.log`);
+    responseMode === "file" ? join(oAgentsDir, "response") : join(logDirPath, "response.log");
+  if (responseMode === "file") {
+    mkdirSync(oAgentsDir, { recursive: true });
+  }
   if (responseMode === "callback") {
     mkdirSync(logDirPath, { recursive: true });
   }

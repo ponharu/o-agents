@@ -59,10 +59,11 @@ type WorkflowRunResult = {
 export async function main(): Promise<void> {
   const args = parseArgs(process.argv);
   const cwd = process.cwd();
-  const logDir = join(cwd, O_AGENTS_DIR, "logs");
+  const logsBaseDir = join(cwd, O_AGENTS_DIR, "logs");
+  const runTimestamp = formatRunTimestamp();
+  const logDir = join(logsBaseDir, runTimestamp);
   mkdirSync(logDir, { recursive: true });
   ensureGitignoreHasOAgents(cwd);
-  const runTimestamp = formatRunTimestamp();
   let overallExitCode = 0;
   let logPath = "";
 
@@ -74,7 +75,7 @@ export async function main(): Promise<void> {
     setCommandConcurrency(args.commandConcurrency);
     const { kind, number } = await resolveTargetKind(args.target);
     const runLabel = `${kind}-${number}`;
-    logPath = join(logDir, `${runTimestamp}-run-${runLabel}.log`);
+    logPath = join(logDir, `run-${runLabel}.log`);
     logger.logPath = logPath;
     await ensureCleanGit(cwd);
 
@@ -93,13 +94,7 @@ export async function main(): Promise<void> {
     const branchTimestamp = formatRunTimestamp();
     const runPromises = workflowRuns.map((runPlan, index) => {
       const runIndex = index + 1;
-      const workflowLogPath = createWorkflowLogPath(
-        logDir,
-        runLabel,
-        runPlan.kind,
-        runIndex,
-        runTimestamp,
-      );
+      const workflowLogPath = createWorkflowLogPath(logDir, runLabel, runPlan.kind, runIndex);
       const runPrefix = `[${runPlan.kind}-${runIndex}]`;
       return logger.runWithContext(
         { extraLogPaths: [workflowLogPath], mainPrefix: runPrefix },
@@ -160,9 +155,8 @@ function createWorkflowLogPath(
   runLabel: string,
   runKind: WorkflowRunPlan["kind"],
   runIndex: number,
-  timestamp: string,
 ): string {
-  return join(logDir, `${timestamp}-workflow-${runLabel}-${runKind}-${runIndex}.log`);
+  return join(logDir, `workflow-${runLabel}-${runKind}-${runIndex}.log`);
 }
 
 async function cleanupWorktrees(

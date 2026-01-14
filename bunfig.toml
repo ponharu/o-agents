@@ -8,3 +8,6 @@ minimumReleaseAge = 432000 # 5 days
 
 [run]
 bun = true
+
+[test]
+preload = ["./test/setup.ts"]

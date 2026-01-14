@@ -1,10 +1,10 @@
 import { expect } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
-import os from "node:os";
+import { rm } from "node:fs/promises";
 import path from "node:path";
 import { setTimeout } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import type { AgentTool } from "../../src/types.ts";
+import { createTestSubDir } from "../../src/utils/testDir.ts";
 
 export const REPO_URL = "https://github.com/exKAZUu/agent-benchmark";
 export const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -157,7 +157,7 @@ export async function runAgentBenchmarkCase(config: {
   validateOutput: (repoDir: string) => Promise<void>;
   validateRunOutput?: (output: string) => void;
 }): Promise<void> {
-  const workDir = await mkdtemp(path.join(os.tmpdir(), "agent-benchmark-"));
+  const workDir = createTestSubDir("agent-benchmark");
   const repoDir = path.join(workDir, "agent-benchmark");
 
   let branchNames: string[] = [];

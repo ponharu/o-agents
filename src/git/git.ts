@@ -92,7 +92,7 @@ export async function createPullRequest(
   body: string,
   options: { cwd: string },
 ): Promise<void> {
-  const tempDir = join(process.cwd(), O_AGENTS_DIR, "tmp");
+  const tempDir = join(process.cwd(), O_AGENTS_DIR, "temp");
   mkdirSync(tempDir, { recursive: true });
   const bodyPath = join(tempDir, `pr-body-${Date.now()}.md`);
   writeFileSync(bodyPath, body, "utf8");

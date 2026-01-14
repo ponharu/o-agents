@@ -1,6 +1,5 @@
 import { expect, test } from "bun:test";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
-import os from "node:os";
+import { readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 
@@ -11,9 +10,10 @@ import {
   runCommandWithOutput,
   setCommandConcurrency,
 } from "../../../src/utils/run.ts";
+import { createTestSubDir } from "../../../src/utils/testDir.ts";
 
 test("runCommandWithOutput prefixes output lines with command id", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "o-agents-run-"));
+  const tempDir = createTestSubDir("run");
   const logPath = path.join(tempDir, "run.log");
 
   try {
@@ -53,7 +53,7 @@ test("runCommandWithOutput prefixes output lines with command id", async () => {
 });
 
 test("runCommandWithOutput preserves parent prefix and increments command ids", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "o-agents-run-"));
+  const tempDir = createTestSubDir("run");
   const logPath = path.join(tempDir, "run.log");
 
   try {
@@ -90,7 +90,7 @@ test("runCommandWithOutput preserves parent prefix and increments command ids", 
 });
 
 test("runCommandWithOutput respects command concurrency", async () => {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "o-agents-run-"));
+  const tempDir = createTestSubDir("run");
   const delayMs = 150;
   const minElapsedMs = delayMs * 1.8;
   const script = `setTimeout(() => { process.stdout.write("done"); }, ${delayMs});`;
@@ -122,7 +122,7 @@ test("runCommandWithOutput respects command concurrency", async () => {
 test("runAgentUntilResult logs intended process tree termination after result", async () => {
   if (process.platform === "win32") return;
 
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), "o-agents-run-"));
+  const tempDir = createTestSubDir("run");
   const pidFile = path.join(tempDir, "child.pid");
   const terminationPlans: TerminationPlan[] = [];
   const script = [
