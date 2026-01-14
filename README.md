@@ -49,6 +49,84 @@ If `--main` omits params, the workflow uses its defaults. Params can be a JSON s
 
 Logs are written under `.o-agents/logs`.
 
+## GitHub Actions Usage
+
+o-agents can be used as a GitHub Action in your CI/CD pipelines.
+
+### Prerequisites
+
+The action requires:
+
+1. **`gh` CLI authentication**: The workflow must have GitHub token configured
+2. **Agent API keys**: Set appropriate secrets for your chosen agent:
+   - `OPENAI_API_KEY` for Codex CLI
+   - `ANTHROPIC_API_KEY` for Claude Code
+   - `GOOGLE_API_KEY` for Gemini CLI
+
+### Basic Usage
+
+```yaml
+name: Auto-implement Issues
+on:
+  issues:
+    types: [labeled]
+
+jobs:
+  implement:
+    if: github.event.label.name == 'auto-implement'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DuelingAgents/o-agents@main
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          target: ${{ github.event.issue.number }}
+          main: codex-cli
+```
+
+### Advanced Usage with Comparison
+
+```yaml
+- uses: DuelingAgents/o-agents@main
+  env:
+    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  with:
+    target: ${{ github.event.issue.number }}
+    main: codex-cli
+    workflow: o-agents/workflowWithTests.ts
+    params: '{"testCommand":["npm","test"]}'
+    compare: claude-code
+    concurrency: '2'
+```
+
+### Inputs
+
+| Input                 | Description                         | Required | Default                       |
+| --------------------- | ----------------------------------- | -------- | ----------------------------- |
+| `target`              | Issue/PR number or URL              | Yes      | -                             |
+| `main`                | Main agent tool                     | No       | `codex-cli`                   |
+| `workflow`            | Workflow file path                  | No       | `o-agents/workflowNoTest.ts`  |
+| `params`              | Workflow parameters (JSON)          | No       | -                             |
+| `compare`             | Comparison agents (space-separated) | No       | -                             |
+| `concurrency`         | Max concurrent workflows            | No       | `1`                           |
+| `command-concurrency` | Max concurrent commands             | No       | -                             |
+| `init`                | Init command per worktree           | No       | `bunx --bun @antfu/ni@latest` |
+| `bun-version`         | Bun version to install              | No       | `latest`                      |
+
+### Outputs
+
+| Output      | Description                           |
+| ----------- | ------------------------------------- |
+| `exit-code` | Exit code from o-agents (0 = success) |
+
 ## Contributing
 
 Issues and PRs are welcome. Please run `bun run test` and `bun run typecheck` before submitting.

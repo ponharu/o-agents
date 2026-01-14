@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { appendFile, readFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type { ZodTypeAny } from "zod";
@@ -145,6 +145,9 @@ export async function main(): Promise<void> {
     await cleanupWorktrees(results, Array.from(activeWorktrees));
   }
 
+  await writeGithubActionOutputs(overallExitCode);
+  emitGithubActionFailure(overallExitCode);
+
   if (overallExitCode !== 0) {
     process.exit(overallExitCode);
   }
@@ -198,6 +201,28 @@ function installSignalHandlers(onCleanup: () => Promise<void>): void {
   process.once("SIGTERM", () => {
     void runCleanup("SIGTERM");
   });
+}
+
+async function writeGithubActionOutputs(exitCode: number): Promise<void> {
+  const outputPath = process.env.GITHUB_OUTPUT;
+  if (!outputPath) {
+    return;
+  }
+
+  try {
+    await appendFile(outputPath, `exit-code=${exitCode}\n`);
+  } catch (error) {
+    const message = getErrorMessage(error);
+    logger.error(`Failed to write GitHub Action outputs: ${message}`);
+  }
+}
+
+function emitGithubActionFailure(exitCode: number): void {
+  if (!process.env.GITHUB_ACTIONS || exitCode === 0) {
+    return;
+  }
+
+  logger.error(`::error::o-agents failed with exit code ${exitCode}`);
 }
 
 async function executeWorkflowRun(options: {

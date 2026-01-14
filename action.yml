@@ -1,0 +1,76 @@
+name: "o-agents"
+description: "Automate coding tasks with dueling AI agents - orchestrates Codex CLI, Claude Code, or Gemini CLI to implement GitHub issues/PRs"
+author: "DuelingAgents"
+branding:
+  icon: "git-pull-request"
+  color: "purple"
+
+inputs:
+  target:
+    description: 'Target Issue or PR number/URL (e.g., "123" or "https://github.com/org/repo/issues/123")'
+    required: true
+  main:
+    description: "Main agent tool (codex-cli, claude-code, gemini-cli, octofriend, or aliases: codex, claude, gemini, octo)"
+    required: false
+    default: "codex-cli"
+  workflow:
+    description: 'Workflow file path (e.g., "o-agents/workflowWithTests.ts"). Defaults to "o-agents/workflowNoTest.ts"'
+    required: false
+    default: ""
+  params:
+    description: 'Workflow parameters as JSON string (e.g., ''{"testCommand":["bun","test"]}'')'
+    required: false
+    default: ""
+  compare:
+    description: 'Comparison agent tools, space-separated (e.g., "claude-code gemini-cli")'
+    required: false
+    default: ""
+  concurrency:
+    description: "Max concurrent workflows per agent tool"
+    required: false
+    default: "1"
+  command-concurrency:
+    description: "Max concurrent external commands started by workflows"
+    required: false
+    default: ""
+  init:
+    description: "Initialization command to run in each worktree"
+    required: false
+    default: "bunx --bun @antfu/ni@latest"
+  bun-version:
+    description: "Bun version to install (passed to oven-sh/setup-bun)"
+    required: false
+    default: "latest"
+
+outputs:
+  exit-code:
+    description: "Exit code from o-agents execution (0 = success)"
+    value: ${{ steps.run-o-agents.outputs.exit-code }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: ${{ inputs.bun-version }}
+
+    - name: Install o-agents
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: bun install --production
+
+    - name: Run o-agents
+      id: run-o-agents
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      env:
+        INPUT_TARGET: ${{ inputs.target }}
+        INPUT_MAIN: ${{ inputs.main }}
+        INPUT_WORKFLOW: ${{ inputs.workflow }}
+        INPUT_PARAMS: ${{ inputs.params }}
+        INPUT_COMPARE: ${{ inputs.compare }}
+        INPUT_CONCURRENCY: ${{ inputs.concurrency }}
+        INPUT_COMMAND_CONCURRENCY: ${{ inputs.command-concurrency }}
+        INPUT_INIT: ${{ inputs.init }}
+      run: bun run src/index.ts --

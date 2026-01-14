@@ -24,6 +24,7 @@ Usage:
 `;
 
 export function parseArgs(argv: string[]): ParsedArgs {
+  const resolvedArgv = buildActionArgsFromEnv(process.env, argv) ?? argv;
   const program = new Command();
   program
     .name("o-agents")
@@ -50,7 +51,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
     .allowExcessArguments(false)
     .addHelpText("before", `${USAGE}\n`);
 
-  program.parse(argv);
+  program.parse(resolvedArgv);
 
   const options = program.opts<{
     target?: string;
@@ -189,4 +190,55 @@ function normalizeTargetValue(value: string | undefined): string | undefined {
   if (!value) return undefined;
   const normalized = value.trim();
   return normalized || undefined;
+}
+
+function buildActionArgsFromEnv(env: NodeJS.ProcessEnv, argv: string[]): string[] | undefined {
+  if (!env.GITHUB_ACTIONS) {
+    return undefined;
+  }
+  const hasFlags = argv.slice(2).some((arg) => arg.startsWith("--"));
+  if (hasFlags) {
+    return undefined;
+  }
+
+  const target = normalizeTargetValue(env.INPUT_TARGET);
+  if (!target) {
+    return undefined;
+  }
+
+  const args: string[] = ["--target", target];
+  const main = normalizeTargetValue(env.INPUT_MAIN) ?? "codex-cli";
+  args.push("--main", main);
+
+  const workflow = normalizeTargetValue(env.INPUT_WORKFLOW);
+  const params = normalizeTargetValue(env.INPUT_PARAMS);
+  if (workflow) {
+    args.push(workflow);
+    if (params) {
+      args.push(params);
+    }
+  }
+
+  const compare = normalizeTargetValue(env.INPUT_COMPARE);
+  if (compare) {
+    args.push("--compare", ...compare.split(/\s+/).filter(Boolean));
+  }
+
+  const concurrency = normalizeTargetValue(env.INPUT_CONCURRENCY);
+  if (concurrency) {
+    args.push("--concurrency", concurrency);
+  }
+
+  const commandConcurrency = normalizeTargetValue(env.INPUT_COMMAND_CONCURRENCY);
+  if (commandConcurrency) {
+    args.push("--command-concurrency", commandConcurrency);
+  }
+
+  const init = normalizeTargetValue(env.INPUT_INIT);
+  if (init) {
+    args.push("--init", init);
+  }
+
+  const baseArgs = argv.slice(0, 2).filter((arg): arg is string => Boolean(arg));
+  return [...baseArgs, ...args];
 }
