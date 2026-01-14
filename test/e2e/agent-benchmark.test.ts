@@ -119,7 +119,7 @@ async function runAgentBenchmarkCase(config: {
     const runStartedAt = new Date();
     const command = [
       "bun",
-      path.join(ROOT_DIR, "src/types.ts"),
+      path.join(ROOT_DIR, "src/index.ts"),
       "--target",
       config.issueRef,
       "--main",
@@ -207,7 +207,7 @@ test(
       workflowPath: WORKFLOW_SIMPLE_PATH,
       mainTool: "gemini-cli",
       validateOutput: async (repoDir) => {
-        const runResult = await runCommand(["bun", "run", "src/types.ts", "hello"], {
+        const runResult = await runCommand(["bun", "run", "src/index.ts", "hello"], {
           cwd: repoDir,
           throwOnError: false,
         });
@@ -234,7 +234,7 @@ test(
         expect(output).toContain("Selection reason:");
       },
       validateOutput: async (repoDir) => {
-        const runResult = await runCommand(["bun", "run", "src/types.ts", "calc", "10", "%", "3"], {
+        const runResult = await runCommand(["bun", "run", "src/index.ts", "calc", "10", "%", "3"], {
           cwd: repoDir,
         });
         console.log(runResult.combined);
