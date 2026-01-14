@@ -10,7 +10,7 @@ It fetches the issue/PR via `gh`, creates a branch, runs the selected agent work
 - One of:
   - `@openai/codex`
   - `@anthropic-ai/claude-code`
-  - `@google/gemini-cli`
+  - ~~`@google/gemini-cli`~~ (Unusable due to https://github.com/google-gemini/gemini-cli/issues/16567)
 
 ## Installation
 
@@ -18,7 +18,7 @@ It fetches the issue/PR via `gh`, creates a branch, runs the selected agent work
 bun add -g o-agents
 ```
 
-If you prefer not to install globally, run from the repo with `bun run src/index.ts --`.
+If you prefer not to install globally, run from the repo with `bun run start`.
 
 ## Usage
 
