@@ -6,7 +6,7 @@ import { readFile, unlink } from "node:fs/promises";
 import { buildAgentCommand } from "./agentCommand.ts";
 import { RESULT_DELIVERY_INSTRUCTION } from "./prompt.ts";
 import { startResultServer, type ResultServer } from "./resultServer.ts";
-import { runAgentUntilResult, runCommandWithOutput } from "../utils/run.ts";
+import { runAgentUntilFileExists, runAgentUntilResult } from "../utils/run.ts";
 import {
   ensureTemporaryAgentInstructionsApplied,
   restoreTemporaryAgentInstructions,
@@ -142,11 +142,12 @@ async function runAgentWithResponse<T>(
   cwd: string,
 ): Promise<T> {
   if (responseHandling.responseMode === "file") {
-    await runCommandWithOutput(agentCommand.command, agentCommand.args, {
-      stream: true,
-      cwd,
-      throwOnError: true,
-    });
+    await runAgentUntilFileExists(
+      agentCommand.command,
+      agentCommand.args,
+      responseHandling.logFilePath,
+      { stream: true, cwd },
+    );
     const result = await readAgentResultFromFile(responseHandling.logFilePath, schema);
     await removeResponseFile(responseHandling.logFilePath);
     return result;
@@ -171,7 +172,7 @@ function resolveResponseMode(tool: AgentTool): ResponseMode {
   return tool === "gemini-cli" ? "file" : "callback";
 }
 
-function buildResponseInstruction(
+export function buildResponseInstruction(
   responseMode: ResponseMode,
   callbackUrl: string | undefined,
   schema: ZodType<unknown> | undefined,
@@ -193,7 +194,7 @@ function buildResponseInstruction(
   const payloadDescription = isJson ? "valid JSON" : "plain text";
   const instructionLines = [
     responseMode === "file"
-      ? `Write your response to "${logFilePath}" as ${payloadDescription}, then terminate.`
+      ? `Write your response to "${logFilePath}" as ${payloadDescription}.`
       : `Write your response to "${logFilePath}" as ${payloadDescription} and submit it using this curl command (retry until successful):`,
   ];
   if (responseMode === "callback") {

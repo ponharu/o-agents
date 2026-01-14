@@ -4,14 +4,12 @@ export function buildAgentCommand(
   tool: AgentTool,
   prompt: string,
 ): { command: string; args: string[] } {
-  const { command, argsPrefix } = resolvePackageRunner();
   switch (tool) {
     case "codex-cli":
       return {
-        command,
+        command: "bunx",
         args: [
-          ...argsPrefix,
-          "--yes",
+          "--bun",
           "@openai/codex@latest",
           "exec",
           "--dangerously-bypass-approvals-and-sandbox",
@@ -20,10 +18,9 @@ export function buildAgentCommand(
       };
     case "claude-code":
       return {
-        command,
+        command: "bunx",
         args: [
-          ...argsPrefix,
-          "--yes",
+          "--bun",
           "@anthropic-ai/claude-code@latest",
           "--dangerously-skip-permissions",
           "--allowed-tools",
@@ -34,10 +31,9 @@ export function buildAgentCommand(
       };
     case "gemini-cli":
       return {
-        command,
+        command: "bunx",
         args: [
-          ...argsPrefix,
-          "--yes",
+          "--bun",
           "@google/gemini-cli@latest",
           // Because Gemini CLI frequently gets stuck, we need to debug it more easily.
           "--debug",
@@ -49,12 +45,4 @@ export function buildAgentCommand(
         ],
       };
   }
-}
-
-let cachedRunner: { command: string; argsPrefix: string[] } | undefined;
-
-function resolvePackageRunner(): { command: string; argsPrefix: string[] } {
-  if (cachedRunner) return cachedRunner;
-  cachedRunner = { command: "bunx", argsPrefix: ["--bun"] };
-  return cachedRunner;
 }

@@ -39,4 +39,17 @@ export type RunOptions = {
   env?: NodeJS.ProcessEnv;
   stream?: boolean;
   throwOnError?: boolean;
+  agentGracePeriodMs?: number;
+  mockTerminateProcessTree?: boolean;
+  onTerminateProcessTree?: (plan: TerminationPlan) => void;
+};
+
+export type TerminationPlan = {
+  mode: "mock" | "real";
+  platform: NodeJS.Platform;
+  signal: NodeJS.Signals;
+  pid?: number;
+  processGroupId?: number;
+  strategy: "no-pid" | "windows" | "darwin-tree" | "process-group" | "child-only";
+  descendants?: number[];
 };
