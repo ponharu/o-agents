@@ -12,7 +12,7 @@ import {
   restoreTemporaryAgentInstructions,
 } from "./instructionOverride.ts";
 import type { AgentTool } from "../types.ts";
-import { O_AGENTS_DIR } from "../git/git.ts";
+import { O_AGENTS_LOGS_DIR } from "../git/git.ts";
 import { formatRunTimestamp } from "../utils/time.ts";
 import { mkdirSync } from "node:fs";
 import { jsonrepair } from "jsonrepair";
@@ -179,12 +179,12 @@ export function buildResponseInstruction(
   cwd: string,
 ): { instruction: string; logFilePath: string } {
   const timestamp = formatRunTimestamp();
-  const oAgentsDir = join(cwd, O_AGENTS_DIR);
-  const logDirPath = join(oAgentsDir, "logs", timestamp);
+  const logsBaseDir = join(cwd, O_AGENTS_LOGS_DIR, "app");
+  const logDirPath = join(logsBaseDir, timestamp);
   const logFilePath =
-    responseMode === "file" ? join(oAgentsDir, "response") : join(logDirPath, "response.log");
+    responseMode === "file" ? join(logsBaseDir, "response") : join(logDirPath, "response.log");
   if (responseMode === "file") {
-    mkdirSync(oAgentsDir, { recursive: true });
+    mkdirSync(logsBaseDir, { recursive: true });
   }
   if (responseMode === "callback") {
     mkdirSync(logDirPath, { recursive: true });

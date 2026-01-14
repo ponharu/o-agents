@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
 
-export const O_AGENTS_DIR = ".o-agents";
+export const O_AGENTS_LOGS_DIR = ".o-agents-logs";
 
 import simpleGit, { type SimpleGit } from "simple-git";
 
@@ -92,7 +92,7 @@ export async function createPullRequest(
   body: string,
   options: { cwd: string },
 ): Promise<void> {
-  const tempDir = join(process.cwd(), O_AGENTS_DIR, "temp");
+  const tempDir = join(process.cwd(), O_AGENTS_LOGS_DIR, "app", "temp");
   mkdirSync(tempDir, { recursive: true });
   const bodyPath = join(tempDir, `pr-body-${Date.now()}.md`);
   writeFileSync(bodyPath, body, "utf8");
@@ -222,19 +222,21 @@ export function ensureGitignoreHasOAgents(cwd: string): void {
   }
 
   const excludePath = join(infoDir, "exclude");
-  const entry = `${O_AGENTS_DIR}/`;
+  const entries = [`${O_AGENTS_LOGS_DIR}/`];
 
   if (!existsSync(excludePath)) {
-    writeFileSync(excludePath, `${entry}\n`, "utf8");
+    writeFileSync(excludePath, `${entries.join("\n")}\n`, "utf8");
     return;
   }
 
   const content = readFileSync(excludePath, "utf8");
   const lines = content.split("\n").map((line) => line.trim());
-  const hasEntry = lines.some((line) => line === entry || line === O_AGENTS_DIR);
+  const entriesToAdd = entries.filter(
+    (entry) => !lines.some((line) => line === entry || line === entry.slice(0, -1)),
+  );
 
-  if (!hasEntry) {
+  if (entriesToAdd.length > 0) {
     const suffix = content.endsWith("\n") ? "" : "\n";
-    writeFileSync(excludePath, `${content}${suffix}${entry}\n`, "utf8");
+    writeFileSync(excludePath, `${content}${suffix}${entriesToAdd.join("\n")}\n`, "utf8");
   }
 }

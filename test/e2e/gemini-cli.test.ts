@@ -9,7 +9,7 @@ test(
     const exitCode = await runInternalWorkflow("gemini-cli");
     expect(exitCode).toBe(0);
   },
-  { timeout: 1000 * 60 * 60 },
+  { timeout: TEST_TIMEOUT },
 );
 
 const issueData: IssueData = {
