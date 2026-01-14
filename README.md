@@ -47,7 +47,12 @@ If `--main` omits workflow/params entirely, it defaults to `o-agents/workflowNoT
 Shorthand `--compare <agent>` inherits the workflow/params from `--main`.
 If `--main` omits params, the workflow uses its defaults. Params can be a JSON string or a path to a JSON file.
 
-Logs are written under `.o-agents/logs`.
+Logs are written under `.o-agents-logs/`:
+
+- `.o-agents-logs/app/<runTimestamp>/run-<issue|pr>-<id>.log`
+- `.o-agents-logs/app/<runTimestamp>/workflow-<runLabel>-<kind>-<index>.log`
+- `.o-agents-logs/response/<timestamp>.log`
+- `.o-agents-logs/test/<timestamp>/`
 
 ## GitHub Actions Usage
 

@@ -1,5 +1,5 @@
 .idea/copilot.*
-.o-agents/
+.o-agents-logs/
 
 # Created by https://www.toptal.com/developers/gitignore/api/node,intellij,macos
 # Edit at https://www.toptal.com/developers/gitignore?templates=node,intellij,macos

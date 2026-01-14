@@ -9,7 +9,7 @@ import { createTestSubDir } from "../../src/utils/testDir.ts";
 export const REPO_URL = "https://github.com/exKAZUu/agent-benchmark";
 export const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 export const WORKFLOW_SIMPLE_PATH = path.join(ROOT_DIR, "o-agents", "workflowSimple.ts");
-export const TEST_TIMEOUT = 1000 * 60 * 30;
+export const TEST_TIMEOUT = 1000 * 60 * 10;
 
 export type RunResult = {
   stdout: string;

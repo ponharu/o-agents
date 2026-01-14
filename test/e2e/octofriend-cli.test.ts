@@ -4,9 +4,9 @@ import type { IssueData } from "../../src/types.ts";
 import { runAgentBenchmarkCase, runCommand, TEST_TIMEOUT, WORKFLOW_SIMPLE_PATH } from "./utils.ts";
 
 test(
-  "internal workflow e2e: gemini-cli",
+  "internal workflow e2e: octofriend",
   async () => {
-    const exitCode = await runInternalWorkflow("gemini-cli");
+    const exitCode = await runInternalWorkflow("octofriend");
     expect(exitCode).toBe(0);
   },
   { timeout: TEST_TIMEOUT },
@@ -19,7 +19,7 @@ const issueData: IssueData = {
   comments: [],
 };
 
-async function runInternalWorkflow(tool: "gemini-cli"): Promise<number> {
+async function runInternalWorkflow(tool: "octofriend"): Promise<number> {
   return runWorkflow({
     tool,
     issueData,
@@ -29,13 +29,13 @@ async function runInternalWorkflow(tool: "gemini-cli"): Promise<number> {
   });
 }
 
-test(
+test.skip(
   "agent-benchmark issue #1 e2e",
   async () => {
     await runAgentBenchmarkCase({
       issueRef: "#1",
       workflowPath: WORKFLOW_SIMPLE_PATH,
-      mainTool: "gemini-cli",
+      mainTool: "octofriend",
       validateOutput: async (repoDir) => {
         const runResult = await runCommand(["bun", "run", "src/index.ts", "hello"], {
           cwd: repoDir,

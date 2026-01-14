@@ -12,7 +12,7 @@ import {
   ensureGitignoreHasOAgents,
   getCurrentBranch,
   getPullRequestUrlForBranch,
-  O_AGENTS_DIR,
+  O_AGENTS_LOGS_DIR,
   removeWorktree,
 } from "../git/git.ts";
 import { logger } from "../utils/logger.ts";
@@ -59,7 +59,7 @@ type WorkflowRunResult = {
 export async function main(): Promise<void> {
   const args = parseArgs(process.argv);
   const cwd = process.cwd();
-  const logsBaseDir = join(cwd, O_AGENTS_DIR, "logs");
+  const logsBaseDir = join(cwd, O_AGENTS_LOGS_DIR, "app");
   const runTimestamp = formatRunTimestamp();
   const logDir = join(logsBaseDir, runTimestamp);
   mkdirSync(logDir, { recursive: true });
