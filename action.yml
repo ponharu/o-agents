@@ -1,5 +1,5 @@
 name: "o-agents"
-description: "Automate coding tasks with dueling AI agents - orchestrates Codex CLI, Claude Code, or Gemini CLI to implement GitHub issues/PRs"
+description: "CLI tool that orchestrates Codex CLI, Claude Code, or Gemini CLI to implement GitHub issues or PRs end-to-end. It fetches the issue/PR via `gh`, creates a branch, runs the selected agent workflow, commits the changes, and opens a PR."
 author: "DuelingAgents"
 branding:
   icon: "git-pull-request"
@@ -10,15 +10,15 @@ inputs:
     description: 'Target Issue or PR number/URL (e.g., "123" or "https://github.com/org/repo/issues/123")'
     required: true
   main:
-    description: "Main agent tool (codex-cli, claude-code, gemini-cli, octofriend, or aliases: codex, claude, gemini, octo)"
+    description: "Main agent tool (codex-cli, claude-code, gemini-cli, or aliases: codex, claude, gemini)"
     required: false
     default: "codex-cli"
   workflow:
     description: 'Workflow file path (e.g., "o-agents/workflowWithTests.ts"). Defaults to "o-agents/workflowNoTest.ts"'
     required: false
-    default: ""
+    default: "o-agents/workflowNoTest.ts"
   params:
-    description: 'Workflow parameters as JSON string (e.g., ''{"testCommand":["bun","test"]}'')'
+    description: 'Workflow parameters as JSON string or JSON file path (e.g., ''{"testCommand":["bun","test"]}'' or "./params.json")'
     required: false
     default: ""
   compare:
