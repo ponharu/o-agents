@@ -19,7 +19,10 @@ export function buildAgentCommand(
         ],
       };
     case "octofriend":
-      return buildOctofriendCommand(prompt);
+      if (!hasNodeRuntime()) {
+        throw new Error("octofriend requires Node.js to be installed.");
+      }
+      return { command: "npx", args: ["--yes", "octofriend@latest", "prompt", prompt] };
     case "claude-code":
       return {
         command,
@@ -34,17 +37,18 @@ export function buildAgentCommand(
         ],
       };
     case "gemini-cli":
+      // Use script command with --prompt-interactive to avoid https://github.com/google-gemini/gemini-cli/issues/16567
       return {
-        command,
+        command: "script",
         args: [
-          ...argsPrefix,
+          "-q",
+          "/dev/null",
+          "npx",
+          "--yes",
           "@google/gemini-cli@latest",
-          // Because Gemini CLI frequently gets stuck, we need to debug it more easily.
-          "--debug",
           "--approval-mode",
           "yolo",
-          "--sandbox",
-          "false",
+          "--prompt-interactive",
           prompt,
         ],
       };
@@ -59,14 +63,4 @@ function resolvePackageRunner(): { command: string; argsPrefix: string[] } {
     ? { command: "npx", argsPrefix: [] }
     : { command: "bunx", argsPrefix: ["--bun"] };
   return cachedRunner;
-}
-
-function buildOctofriendCommand(prompt: string): { command: string; args: string[] } {
-  if (!hasNodeRuntime()) {
-    throw new Error("octofriend requires Node.js to be installed.");
-  }
-  return {
-    command: "npx",
-    args: ["--yes", "octofriend@latest", prompt],
-  };
 }

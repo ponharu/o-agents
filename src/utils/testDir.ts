@@ -10,14 +10,14 @@ let testRunDir: string | undefined;
 export function getTestDir(): string {
   if (!testRunDir) {
     const timestamp = formatRunTimestamp();
-    testRunDir = join(process.cwd(), O_AGENTS_LOGS_DIR, "app", TEST_DIR, timestamp);
+    testRunDir = join(process.cwd(), O_AGENTS_LOGS_DIR, TEST_DIR, timestamp);
     mkdirSync(testRunDir, { recursive: true });
   }
   return testRunDir;
 }
 
 export function cleanupTestBaseDir(): void {
-  const testBaseDir = join(process.cwd(), O_AGENTS_LOGS_DIR, "app", TEST_DIR);
+  const testBaseDir = join(process.cwd(), O_AGENTS_LOGS_DIR, TEST_DIR);
   rmSync(testBaseDir, { recursive: true, force: true });
 }
 
