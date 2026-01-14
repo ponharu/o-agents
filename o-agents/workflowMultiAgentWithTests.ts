@@ -17,7 +17,18 @@ import { reviewCommentSchema, reviewResponseSchema } from "./schemas.ts";
 import { runNonInteractiveAgents } from "../src/agent/workflowRunner.ts";
 
 export const paramsSchema = z.object({
-  testCommand: z.array(z.string().min(1)).min(1).optional().default(["bun", "test"]),
+  testCommand: z
+    .preprocess(
+      (value) => {
+        if (typeof value === "string") {
+          return value.trim().split(/\s+/).filter(Boolean);
+        }
+        return value;
+      },
+      z.array(z.string().min(1)).min(1),
+    )
+    .optional()
+    .default(["bun", "test"]),
 });
 
 type WorkflowParams = z.infer<typeof paramsSchema>;
