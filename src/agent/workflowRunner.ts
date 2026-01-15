@@ -78,7 +78,7 @@ export async function runNonInteractiveAgent<T>(
     const { tool, prompt, cwd } = options;
     const schema = options.schema as ZodType<T> | undefined;
     const resultServer = await startResultServer(schema);
-    const instruction = buildResponseInstruction(resultServer.url, schema, cwd).instruction;
+    const instruction = buildResponseInstruction(resultServer.url, schema).instruction;
     const resolvedPrompt = injectResponseInstruction(prompt, instruction);
     try {
       await ensureTemporaryAgentInstructionsApplied({ cwd });
@@ -120,10 +120,9 @@ function getPromisePool(tool: AgentTool): PromisePool {
 function buildResponseInstruction(
   callbackUrl: string,
   schema: ZodType<unknown> | undefined,
-  cwd: string,
 ): { instruction: string; logFilePath: string } {
   const timestamp = formatRunTimestamp();
-  const logsBaseDir = join(cwd, O_AGENTS_LOGS_DIR, "response");
+  const logsBaseDir = join(O_AGENTS_LOGS_DIR, "response");
   const logFilePath = join(logsBaseDir, `${timestamp}.log`);
   mkdirSync(logsBaseDir, { recursive: true });
   const isJson = Boolean(schema);
