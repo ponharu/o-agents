@@ -51,7 +51,6 @@ test(
   { timeout: TEST_TIMEOUT },
 );
 
-// To speed up test suite, this test is skipped by default.
 test(
   "agent-benchmark issue #167 e2e",
   async () => {

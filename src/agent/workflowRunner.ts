@@ -6,7 +6,7 @@ import { mkdirSync } from "node:fs";
 import { buildAgentCommand } from "./agentCommand.ts";
 import { RESULT_DELIVERY_INSTRUCTION } from "./prompt.ts";
 import { startResultServer } from "./resultServer.ts";
-import { runAgentUntilResult, runCommandWithOutput } from "../utils/run.ts";
+import { runAgentUntilResult } from "../utils/run.ts";
 import {
   ensureTemporaryAgentInstructionsApplied,
   restoreTemporaryAgentInstructions,
@@ -14,7 +14,6 @@ import {
 import type { AgentTool } from "../types.ts";
 import { O_AGENTS_LOGS_DIR } from "../git/git.ts";
 import { formatRunTimestamp } from "../utils/time.ts";
-import { jsonrepair } from "jsonrepair";
 
 let agentConcurrency = 1;
 const promisePools = new Map<AgentTool, PromisePool>();
@@ -78,33 +77,16 @@ export async function runNonInteractiveAgent<T>(
   return pool.runAndWaitForReturnValue(async () => {
     const { tool, prompt, cwd } = options;
     const schema = options.schema as ZodType<T> | undefined;
-    const useStdout = tool === "octofriend";
-    const resultServer = useStdout ? undefined : await startResultServer(schema);
-    const instruction = useStdout
-      ? buildStdoutInstruction(schema)
-      : buildResponseInstruction(resultServer!.url, schema, cwd).instruction;
+    const resultServer = await startResultServer(schema);
+    const instruction = buildResponseInstruction(resultServer.url, schema, cwd).instruction;
     const resolvedPrompt = injectResponseInstruction(prompt, instruction);
     try {
       await ensureTemporaryAgentInstructionsApplied({ cwd });
       const agentCommand = buildAgentCommand(tool, resolvedPrompt);
-      if (useStdout) {
-        const output = await runCommandWithOutput(agentCommand.command, agentCommand.args, {
-          stream: true,
-          cwd,
-          env: { NODE_ENV: "production" },
-          throwOnError: false,
-          terminal: agentCommand.terminal,
-        });
-        const parsed = parseAgentStdout(output.stdout, schema);
-        if (parsed === undefined) {
-          throw new Error(`Octofriend produced no usable output (exit ${output.exitCode}).`);
-        }
-        return parsed as T;
-      }
       const result = await runAgentUntilResult(
         agentCommand.command,
         agentCommand.args,
-        resultServer!.waitForResult,
+        resultServer.waitForResult,
         {
           stream: true,
           cwd,
@@ -171,48 +153,4 @@ function buildResponseInstruction(
     instruction: instructionLines.join("\n"),
     logFilePath,
   };
-}
-
-function buildStdoutInstruction(schema: ZodType<unknown> | undefined): string {
-  const isJson = Boolean(schema);
-  const payloadDescription = isJson
-    ? "valid JSON"
-    : "plain text (write 'DONE' if no specific result is required)";
-  const instructionLines = [
-    `Write your response as ${payloadDescription} to stdout only.`,
-    "Do not include any other text.",
-  ];
-  if (!schema) {
-    return instructionLines.join("\n");
-  }
-  const jsonSchema = z.toJSONSchema(schema);
-  instructionLines.push(
-    "Your JSON response must conform to this schema:",
-    "```json",
-    JSON.stringify(jsonSchema, null, 2),
-    "```",
-  );
-  return instructionLines.join("\n");
-}
-
-function parseAgentStdout<T>(stdout: string, schema: ZodType<T> | undefined): T {
-  const trimmed = stdout.trim();
-  if (!trimmed) {
-    return undefined as T;
-  }
-  if (!schema) {
-    return trimmed as T;
-  }
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(jsonrepair(trimmed));
-  } catch {
-    throw new Error("Invalid JSON response from agent.");
-  }
-  const validated = schema.safeParse(parsed);
-  if (!validated.success) {
-    const issue = validated.error.issues[0]?.message ?? "Invalid result payload.";
-    throw new Error(issue);
-  }
-  return validated.data;
 }
