@@ -124,6 +124,7 @@ export async function startResultServer<T>(
           isClosed = true;
           resolve();
         });
+        server.closeAllConnections();
       });
     },
   };

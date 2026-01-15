@@ -21,6 +21,7 @@ import type { AgentTool, IssueData, ParsedArgs, WorkKind, WorkflowSpec } from ".
 import { getErrorMessage } from "../utils/error.ts";
 import { formatRunTimestamp } from "../utils/time.ts";
 import { runCommandWithOutput, setCommandConcurrency } from "../utils/run.ts";
+import { hasNodeRuntime } from "../utils/runtime.ts";
 
 type WorkflowFunction = (
   context: {
@@ -57,6 +58,9 @@ type WorkflowRunResult = {
 };
 
 export async function main(): Promise<void> {
+  if (!hasNodeRuntime()) {
+    throw new Error("Node.js is required to run agents via npx.");
+  }
   const args = parseArgs(process.argv);
   const cwd = process.cwd();
   const logsBaseDir = join(cwd, O_AGENTS_LOGS_DIR, "app");
@@ -148,9 +152,7 @@ export async function main(): Promise<void> {
   await writeGithubActionOutputs(overallExitCode);
   emitGithubActionFailure(overallExitCode);
 
-  if (overallExitCode !== 0) {
-    process.exit(overallExitCode);
-  }
+  process.exit(overallExitCode);
 }
 
 function createWorkflowLogPath(

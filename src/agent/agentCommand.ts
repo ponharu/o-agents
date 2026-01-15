@@ -1,17 +1,15 @@
 import type { AgentTool } from "../types.ts";
-import { hasNodeRuntime } from "../utils/runtime.ts";
 
 export function buildAgentCommand(
   tool: AgentTool,
   prompt: string,
-): { command: string; args: string[] } {
-  const { command, argsPrefix } = resolvePackageRunner();
+): { command: string; args: string[]; terminal?: boolean } {
   switch (tool) {
     case "codex-cli":
       return {
-        command,
+        command: "npx",
         args: [
-          ...argsPrefix,
+          "--yes",
           "@openai/codex@latest",
           "exec",
           "--dangerously-bypass-approvals-and-sandbox",
@@ -19,15 +17,15 @@ export function buildAgentCommand(
         ],
       };
     case "octofriend":
-      if (!hasNodeRuntime()) {
-        throw new Error("octofriend requires Node.js to be installed.");
-      }
-      return { command: "npx", args: ["--yes", "octofriend@latest", "prompt", prompt] };
+      return {
+        command: "npx",
+        args: ["--yes", "octofriend@latest", "prompt", prompt],
+      };
     case "claude-code":
       return {
-        command,
+        command: "npx",
         args: [
-          ...argsPrefix,
+          "--yes",
           "@anthropic-ai/claude-code@latest",
           "--dangerously-skip-permissions",
           "--allowed-tools",
@@ -37,13 +35,10 @@ export function buildAgentCommand(
         ],
       };
     case "gemini-cli":
-      // Use script command with --prompt-interactive to avoid https://github.com/google-gemini/gemini-cli/issues/16567
+      // "--prompt-interactive" is required to avoid https://github.com/google-gemini/gemini-cli/issues/16567
       return {
-        command: "script",
+        command: "npx",
         args: [
-          "-q",
-          "/dev/null",
-          "npx",
           "--yes",
           "@google/gemini-cli@latest",
           "--approval-mode",
@@ -51,16 +46,7 @@ export function buildAgentCommand(
           "--prompt-interactive",
           prompt,
         ],
+        terminal: true,
       };
   }
-}
-
-let cachedRunner: { command: string; argsPrefix: string[] } | undefined;
-
-function resolvePackageRunner(): { command: string; argsPrefix: string[] } {
-  if (cachedRunner) return cachedRunner;
-  cachedRunner = hasNodeRuntime()
-    ? { command: "npx", argsPrefix: [] }
-    : { command: "bunx", argsPrefix: ["--bun"] };
-  return cachedRunner;
 }

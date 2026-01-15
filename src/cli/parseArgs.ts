@@ -10,7 +10,7 @@ const AGENT_ALIASES: Record<string, AgentTool> = {
   octo: "octofriend",
 };
 const DEFAULT_MAIN_WORKFLOW = "o-agents/workflowNoTest.ts";
-const DEFAULT_INIT_COMMAND = "bunx --bun @antfu/ni@latest";
+const DEFAULT_INIT_COMMAND = "npx --yes @antfu/ni@latest";
 
 const USAGE = `o-agents
 
