@@ -1,8 +1,13 @@
-import { expect, test } from "bun:test";
+import { expect, test, describe, beforeEach, afterEach } from "bun:test";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 
-import { parseArgs } from "../../../src/cli/parseArgs.ts";
+import { parseArgs, parseArgsWithConfig } from "../../../src/cli/parseArgs.ts";
 
 const DEFAULT_WORKFLOW = "o-agents/workflowNoTest.ts";
+const TEST_DIR = join(import.meta.dir, ".test-parseargs");
+const CONFIG_DIR = join(TEST_DIR, "o-agents");
+const CONFIG_PATH = join(CONFIG_DIR, "config.toml");
 
 test("parseArgs requires --target", () => {
   const argv = ["node", "o-agents", "--main", "codex-cli", "o-agents/workflowWithTests.ts"];
@@ -105,3 +110,71 @@ test("parseArgs rejects non-positive command concurrency", () => {
     "--command-concurrency must be a positive integer.",
   );
 });
+
+describe("parseArgsWithConfig", () => {
+  beforeEach(() => {
+    if (!existsSync(TEST_DIR)) {
+      mkdirSync(TEST_DIR, { recursive: true });
+    }
+  });
+
+  afterEach(() => {
+    if (existsSync(TEST_DIR)) {
+      rmSync(TEST_DIR, { recursive: true });
+    }
+  });
+
+  test("parseArgsWithConfig expands config name to args", () => {
+    writeConfig(`
+[config.simple]
+args = ["--main", "codex-cli"]
+`);
+
+    const argv = ["node", "o-agents", "simple", "--target", "123"];
+    const parsed = parseArgsWithConfig(argv, TEST_DIR);
+    expect(parsed.main?.tool).toBe("codex-cli");
+    expect(parsed.target).toBe("123");
+  });
+
+  test("parseArgsWithConfig CLI args override config args", () => {
+    writeConfig(`
+[config.simple]
+args = ["--main", "codex-cli"]
+`);
+
+    const argv = ["node", "o-agents", "simple", "--target", "123", "--main", "claude-code"];
+    const parsed = parseArgsWithConfig(argv, TEST_DIR);
+    expect(parsed.main?.tool).toBe("claude-code");
+  });
+
+  test("parseArgsWithConfig throws for unknown config name", () => {
+    writeConfig(`
+[config.simple]
+args = ["--main", "codex"]
+`);
+
+    const argv = ["node", "o-agents", "unknown", "--target", "123"];
+    expect(() => parseArgsWithConfig(argv, TEST_DIR)).toThrow(
+      "Unknown config 'unknown'. Available configs:",
+    );
+  });
+
+  test("parseArgsWithConfig works without config file", () => {
+    const argv = ["node", "o-agents", "--target", "123", "--main", "codex-cli"];
+    const parsed = parseArgsWithConfig(argv, TEST_DIR);
+    expect(parsed.main?.tool).toBe("codex-cli");
+    expect(parsed.target).toBe("123");
+  });
+
+  test("parseArgsWithConfig throws when config name specified but no config file", () => {
+    const argv = ["node", "o-agents", "simple", "--target", "123"];
+    expect(() => parseArgsWithConfig(argv, TEST_DIR)).toThrow(
+      "Config name 'simple' specified but no config file found.",
+    );
+  });
+});
+
+function writeConfig(contents: string): void {
+  mkdirSync(CONFIG_DIR, { recursive: true });
+  writeFileSync(CONFIG_PATH, contents);
+}

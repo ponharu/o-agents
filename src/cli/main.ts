@@ -4,7 +4,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type { ZodTypeAny } from "zod";
 import { runNonInteractiveAgent, setAgentConcurrency } from "../agent/workflowRunner.ts";
-import { parseArgs } from "./parseArgs.ts";
+import { parseArgsWithConfig } from "./parseArgs.ts";
 import {
   fetchIssueOrPullRequestData,
   getRepoInfo,
@@ -66,7 +66,7 @@ export async function main(): Promise<void> {
   if (!hasNodeRuntime()) {
     throw new Error("Node.js is required to run agents via npx.");
   }
-  const args = parseArgs(process.argv);
+  const args = parseArgsWithConfig(process.argv);
   const cwd = process.cwd();
   const logsBaseDir = join(cwd, O_AGENTS_LOGS_DIR, "app");
   const runTimestamp = formatRunTimestamp();
