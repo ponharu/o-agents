@@ -96,7 +96,7 @@ export async function createPullRequest(
   mkdirSync(tempDir, { recursive: true });
   const bodyPath = join(tempDir, `pr-body-${Date.now()}.md`);
   writeFileSync(bodyPath, body, "utf8");
-  const title = await getLastCommitTitle(options.cwd);
+  const title = await getFirstCommitTitle(options.cwd, baseBranch, headBranch);
 
   const { stdout, stderr } = await runCommandWithOutput(
     "gh",
@@ -122,11 +122,20 @@ export async function createPullRequest(
   }
 }
 
-async function getLastCommitTitle(cwd: string): Promise<string> {
+export async function getFirstCommitTitle(
+  cwd: string,
+  baseBranch: string,
+  headBranch: string,
+): Promise<string> {
   const git = getGit(cwd);
-  const title = (await git.raw(["log", "-1", "--pretty=%s"])).trim();
+  const range = `${baseBranch}..${headBranch}`;
+  const log = (await git.raw(["log", "--reverse", "--pretty=%s", range])).trim();
+  const title = log
+    .split("\n")
+    .map((line) => line.trim())
+    .find((line) => line.length > 0);
   if (!title) {
-    throw new Error("Failed to determine last commit title for pull request.");
+    throw new Error("Failed to determine first commit title for pull request.");
   }
   return title;
 }
