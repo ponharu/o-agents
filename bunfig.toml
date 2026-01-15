@@ -7,4 +7,4 @@ linker = "hoisted"
 minimumReleaseAge = 432000 # 5 days
 
 [run]
-bun = true
+bun = false
