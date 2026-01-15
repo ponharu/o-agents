@@ -39,6 +39,7 @@ export type RunOptions = {
   env?: NodeJS.ProcessEnv;
   stream?: boolean;
   throwOnError?: boolean;
+  terminal?: boolean;
   agentGracePeriodMs?: number;
   mockTerminateProcessTree?: boolean;
   onTerminateProcessTree?: (plan: TerminationPlan) => void;

@@ -52,7 +52,7 @@ test(
 );
 
 // To speed up test suite, this test is skipped by default.
-test.skip(
+test(
   "agent-benchmark issue #167 e2e",
   async () => {
     await runAgentBenchmarkCase({

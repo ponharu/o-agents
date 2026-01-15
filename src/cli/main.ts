@@ -145,9 +145,7 @@ export async function main(): Promise<void> {
     await cleanupWorktrees(results, Array.from(activeWorktrees));
   }
 
-  if (overallExitCode !== 0) {
-    process.exit(overallExitCode);
-  }
+  process.exit(overallExitCode);
 }
 
 function createWorkflowLogPath(

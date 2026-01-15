@@ -73,6 +73,16 @@ export async function runAgentUntilResult(
   return result!;
 }
 
+function runWithLoggingContext<T>(logger: Logger, command: string, args: string[], fn: () => T): T {
+  const commandId = nextCommandLabel();
+  const commandLabel = `$ ${[command, ...args].join(" ")}`;
+
+  return logger.runWithContext({ prefix: commandId }, () => {
+    logger.info(commandLabel);
+    return fn();
+  });
+}
+
 function spawnProcessWithLogging(
   logger: Logger,
   command: string,
@@ -80,18 +90,22 @@ function spawnProcessWithLogging(
   options: RunOptions,
   spawnOptions?: { detached?: boolean },
 ): {
-  child: ReturnType<typeof spawn>;
+  child: {
+    kill: (signal?: NodeJS.Signals) => boolean;
+    pid?: number;
+    exitCode: number | null;
+    killed: boolean;
+  };
   output: { stdout: string; stderr: string; combined: string };
   exit: Promise<{ code: number | null }>;
   processGroupId?: number;
 } {
-  const streamToConsole = options.stream ?? false;
-  const commandId = nextCommandLabel();
-  const commandLabel = `$ ${[command, ...args].join(" ")}`;
+  if (options.terminal) {
+    return spawnProcessWithTerminal(command, args, options, spawnOptions);
+  }
 
-  return logger.runWithContext({ prefix: commandId }, () => {
-    logger.info(commandLabel);
-
+  return runWithLoggingContext(logger, command, args, () => {
+    const streamToConsole = options.stream ?? false;
     const detached = spawnOptions?.detached ?? false;
     const child = spawn(command, args, {
       cwd: options.cwd,
@@ -148,8 +162,117 @@ function spawnProcessWithLogging(
     });
 
     const processGroupId = detached ? (child.pid ?? undefined) : undefined;
-    return { child, output, exit, processGroupId };
+    return {
+      child: {
+        kill: (signal?: NodeJS.Signals) => child.kill(signal),
+        pid: child.pid,
+        get exitCode() {
+          return child.exitCode;
+        },
+        get killed() {
+          return child.killed;
+        },
+      },
+      output,
+      exit,
+      processGroupId,
+    };
   });
+}
+
+function spawnProcessWithTerminal(
+  command: string,
+  args: string[],
+  options: RunOptions,
+  spawnOptions?: { detached?: boolean },
+): {
+  child: {
+    kill: (signal?: NodeJS.Signals) => boolean;
+    pid?: number;
+    exitCode: number | null;
+    killed: boolean;
+  };
+  output: { stdout: string; stderr: string; combined: string };
+  exit: Promise<{ code: number }>;
+  processGroupId?: number;
+} {
+  return runWithLoggingContext(logger, command, args, () => {
+    const streamToConsole = options.stream ?? false;
+    const output = { stdout: "", stderr: "", combined: "" };
+    const decoder = new TextDecoder();
+    const stdoutBuffer = createLineBuffer((line) => {
+      logger.writeChunk(line, streamToConsole, false);
+    });
+
+    const terminal = new Bun.Terminal({
+      cols: 120,
+      rows: 40,
+      data(_terminal, data) {
+        const text = decoder.decode(data, { stream: true });
+        if (!text) return;
+        output.stdout += text;
+        output.combined += text;
+        const displayText = normalizeTerminalOutput(stripAnsi(text));
+        if (displayText) {
+          stdoutBuffer.write(displayText);
+        }
+      },
+    });
+
+    const detached = spawnOptions?.detached ?? false;
+    const child = Bun.spawn([command, ...args], {
+      cwd: options.cwd,
+      env: { ...process.env, ...options.env },
+      terminal,
+      detached,
+    });
+
+    const exit = child.exited.then((exitCode) => {
+      const flushText = decoder.decode();
+      if (flushText) {
+        output.stdout += flushText;
+        output.combined += flushText;
+        const displayText = normalizeTerminalOutput(stripAnsi(flushText));
+        if (displayText) {
+          stdoutBuffer.write(displayText);
+        }
+      }
+      stdoutBuffer.flush();
+      return { code: exitCode };
+    });
+
+    const processGroupId = detached ? (child.pid ?? undefined) : undefined;
+    return {
+      child: {
+        kill: (signal?: NodeJS.Signals) => {
+          child.kill(signal);
+          return true;
+        },
+        pid: child.pid,
+        get exitCode() {
+          return child.exitCode;
+        },
+        get killed() {
+          return child.exitCode !== null;
+        },
+      },
+      output,
+      exit,
+      processGroupId,
+    };
+  });
+}
+
+function stripAnsi(text: string): string {
+  return text.replace(
+    // eslint-disable-next-line no-control-regex
+    /\u001b\[[0-9;?]*[ -/]*[@-~]/g,
+    "",
+  );
+}
+
+function normalizeTerminalOutput(text: string): string {
+  return text.replace(/\r/g, "\n");
 }
 
 function formatCommandFailureMessage(

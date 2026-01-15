@@ -93,6 +93,7 @@ export async function runNonInteractiveAgent<T>(
           cwd,
           env: { NODE_ENV: "production" },
           throwOnError: false,
+          terminal: agentCommand.terminal,
         });
         const parsed = parseAgentStdout(output.stdout, schema);
         if (parsed === undefined) {
@@ -104,7 +105,12 @@ export async function runNonInteractiveAgent<T>(
         agentCommand.command,
         agentCommand.args,
         resultServer!.waitForResult,
-        { stream: true, cwd },
+        {
+          stream: true,
+          cwd,
+          terminal: agentCommand.terminal,
+          agentGracePeriodMs: tool === "gemini-cli" ? 0 : undefined,
+        },
       );
       return result.result as T;
     } finally {

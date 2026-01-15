@@ -1,15 +1,20 @@
-import { spawn, spawnSync } from "node:child_process";
+import { execSync, spawnSync } from "node:child_process";
 import { setTimeout } from "node:timers/promises";
 
 import type { TerminationPlan } from "../types.ts";
 import type { Logger } from "./logger.ts";
 
-const PGRP_TIMEOUT_MS = 1000;
-const PGRP_MAX_BUFFER = 256 * 1024;
+const PGRP_TIMEOUT_MS = 2000;
+const PGRP_MAX_BUFFER = 1024 * 1024;
 
 export async function finalizeAgentProcess(
   logger: Logger,
-  child: ReturnType<typeof spawn>,
+  child: {
+    kill: (signal?: NodeJS.Signals) => boolean;
+    pid?: number;
+    exitCode: number | null;
+    killed: boolean;
+  },
   exit: Promise<{ code: number | null }>,
   gracePeriodMs: number,
   processGroupId?: number,
@@ -44,7 +49,12 @@ export async function finalizeAgentProcess(
 
 async function terminateProcessTree(
   logger: Logger,
-  child: ReturnType<typeof spawn>,
+  child: {
+    kill: (signal?: NodeJS.Signals) => boolean;
+    pid?: number;
+    exitCode: number | null;
+    killed: boolean;
+  },
   exit: Promise<{ code: number | null }>,
   processGroupId?: number,
   onTerminateProcessTree?: (plan: TerminationPlan) => void,
@@ -61,7 +71,7 @@ async function terminateProcessTree(
 
   signalProcess("SIGTERM");
 
-  const exited = await Promise.race([exit.then(() => true), setTimeout(5000).then(() => false)]);
+  const exited = await Promise.race([exit.then(() => true), setTimeout(1000).then(() => false)]);
   if (exited) return;
 
   logger.info("Agent did not exit after SIGTERM. Sending SIGKILL...");
@@ -70,7 +80,12 @@ async function terminateProcessTree(
 
 function executeTerminationStrategy(
   plan: TerminationPlan,
-  child: ReturnType<typeof spawn>,
+  child: {
+    kill: (signal?: NodeJS.Signals) => boolean;
+    pid?: number;
+    exitCode: number | null;
+    killed: boolean;
+  },
   logger: Logger,
 ): void {
   switch (plan.strategy) {
@@ -142,22 +157,27 @@ function collectProcessTreeMacOS(rootPid: number): number[] {
 }
 
 function listChildPidsMacOS(parentPid: number, rootPgid?: number): number[] {
-  const result = spawnSync("pgrep", ["-P", `${parentPid}`], {
-    encoding: "utf8",
-    timeout: PGRP_TIMEOUT_MS,
-    maxBuffer: PGRP_MAX_BUFFER,
-  });
+  let stdout = "";
+  try {
+    // We must use execSync due to https://github.com/pkrumins/node-tree-kill/pull/44
+    stdout = execSync(`pgrep -P ${parentPid}`, {
+      encoding: "utf8",
+      timeout: PGRP_TIMEOUT_MS,
+      maxBuffer: PGRP_MAX_BUFFER,
+    });
+  } catch (error) {
+    const status = (error as NodeJS.ErrnoException & { status?: number }).status;
+    if (status !== 1) {
+      return [];
+    }
+  }
 
-  if (result.error || result.status === 1) {
+  const trimmed = stdout?.trim() ?? "";
+  if (!trimmed) {
     return [];
   }
 
-  const stdout = result.stdout?.trim() ?? "";
-  if (!stdout) {
-    return [];
-  }
-
-  const pids = stdout
+  const pids = trimmed
     .split("\n")
     .map((line) => Number(line))
     .filter((pid) => Number.isFinite(pid) && pid > 0);
@@ -184,28 +204,35 @@ function killProcessList(pids: number[], signal: NodeJS.Signals, logger: Logger)
 }
 
 function getProcessGroupIdMacOS(pid: number): number | undefined {
-  const result = spawnSync("ps", ["-o", "pgid=", "-p", `${pid}`], {
-    encoding: "utf8",
-    timeout: PGRP_TIMEOUT_MS,
-    maxBuffer: PGRP_MAX_BUFFER,
-  });
-
-  if (result.error) {
+  let stdout = "";
+  try {
+    // We must use execSync due to https://github.com/pkrumins/node-tree-kill/pull/44
+    stdout = execSync(`ps -o pgid= -p ${pid}`, {
+      encoding: "utf8",
+      timeout: PGRP_TIMEOUT_MS,
+      maxBuffer: PGRP_MAX_BUFFER,
+    });
+  } catch {
     return undefined;
   }
 
-  const stdout = result.stdout?.trim() ?? "";
-  if (!stdout) {
+  const trimmed = stdout?.trim() ?? "";
+  if (!trimmed) {
     return undefined;
   }
 
-  const pgid = Number(stdout);
+  const pgid = Number(trimmed);
   return Number.isFinite(pgid) ? pgid : undefined;
 }
 
 function recordMockTermination(
   logger: Logger,
-  child: ReturnType<typeof spawn>,
+  child: {
+    kill: (signal?: NodeJS.Signals) => boolean;
+    pid?: number;
+    exitCode: number | null;
+    killed: boolean;
+  },
   processGroupId: number | undefined,
   onTerminateProcessTree?: (plan: TerminationPlan) => void,
 ): void {
@@ -238,12 +265,12 @@ function buildTerminationPlan(
   if (platform === "win32") {
     return { mode, platform, signal, pid, strategy: "windows" };
   }
+  if (processGroupId) {
+    return { mode, platform, signal, pid, processGroupId, strategy: "process-group" };
+  }
   if (platform === "darwin") {
     const descendants = darwinDescendants ?? collectProcessTreeMacOS(pid);
     return { mode, platform, signal, pid, strategy: "darwin-tree", descendants };
-  }
-  if (processGroupId) {
-    return { mode, platform, signal, pid, processGroupId, strategy: "process-group" };
   }
   return { mode, platform, signal, pid, strategy: "child-only" };
 }

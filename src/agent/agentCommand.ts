@@ -4,7 +4,7 @@ import { hasNodeRuntime } from "../utils/runtime.ts";
 export function buildAgentCommand(
   tool: AgentTool,
   prompt: string,
-): { command: string; args: string[] } {
+): { command: string; args: string[]; terminal?: boolean } {
   const { command, argsPrefix } = resolvePackageRunner();
   switch (tool) {
     case "codex-cli":
@@ -47,9 +47,10 @@ export function buildAgentCommand(
           "yolo",
           "--output-format",
           "stream-json",
-          "--prompt",
+          "--prompt-interactive",
           prompt,
         ],
+        terminal: true,
       };
   }
 }
