@@ -40,9 +40,12 @@ export type RunOptions = {
   stream?: boolean;
   throwOnError?: boolean;
   terminal?: boolean;
-  agentGracePeriodMs?: number;
   mockTerminateProcessTree?: boolean;
   onTerminateProcessTree?: (plan: TerminationPlan) => void;
+};
+
+export type AgentRunOptions = RunOptions & {
+  agentGracePeriodMs: number;
 };
 
 export type TerminationPlan = {

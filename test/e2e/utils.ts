@@ -1,5 +1,5 @@
 import { expect } from "bun:test";
-import { rm } from "node:fs/promises";
+import { readdir, rm } from "node:fs/promises";
 import path from "node:path";
 import { setTimeout } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
@@ -155,7 +155,7 @@ export async function runAgentBenchmarkCase(config: {
   mainTool: AgentTool;
   compareTools?: AgentTool[];
   validateOutput: (repoDir: string) => Promise<void>;
-  validateRunOutput?: (output: string) => void;
+  validateRunOutput?: (output: string) => void | Promise<void>;
 }): Promise<void> {
   const workDir = createTestSubDir("agent-benchmark");
   const repoDir = path.join(workDir, "agent-benchmark");
@@ -188,7 +188,7 @@ export async function runAgentBenchmarkCase(config: {
       streamOutput: true,
     });
     if (config.validateRunOutput) {
-      config.validateRunOutput(runResult.combined);
+      await config.validateRunOutput(runResult.combined);
     }
     await assertCleanWorkingTree(repoDir);
 
@@ -217,6 +217,20 @@ export async function runAgentBenchmarkCase(config: {
         throwOnError: false,
       });
     }
-    await rm(workDir, { recursive: true, force: true });
+    await removeNodeModules(workDir);
+  }
+}
+
+async function removeNodeModules(rootDir: string): Promise<void> {
+  const entries = await readdir(rootDir, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = path.join(rootDir, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name === "node_modules") {
+        await rm(fullPath, { recursive: true, force: true });
+      } else {
+        await removeNodeModules(fullPath);
+      }
+    }
   }
 }

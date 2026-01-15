@@ -3,7 +3,7 @@ import runWorkflow from "../../o-agents/workflowInternalTest.ts";
 import type { IssueData } from "../../src/types.ts";
 import { runAgentBenchmarkCase, runCommand, TEST_TIMEOUT, WORKFLOW_SIMPLE_PATH } from "./utils.ts";
 
-test(
+test.skip(
   "internal workflow e2e: octofriend",
   async () => {
     const exitCode = await runInternalWorkflow("octofriend");

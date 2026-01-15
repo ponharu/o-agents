@@ -26,7 +26,7 @@ export async function finalizeAgentProcess(
     return;
   }
 
-  const shouldMock = Boolean(mockTerminateProcessTree && process.env.NODE_ENV === "test");
+  const shouldMock = Boolean(mockTerminateProcessTree && process.env.O_AGENTS_ENV === "test");
   const exitedDuringGrace = await Promise.race([
     exit.then(() => true),
     setTimeout(gracePeriodMs).then(() => false),

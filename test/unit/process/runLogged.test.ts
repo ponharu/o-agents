@@ -17,16 +17,17 @@ test("runCommandWithOutput prefixes output lines with command id", async () => {
   const logPath = path.join(tempDir, "run.log");
 
   try {
-    logger.logPath = logPath;
     const script =
       'process.stdout.write("alpha\\nBravo\\n");' +
       'process.stderr.write("err-one\\nerr-two\\n");' +
       'process.stdout.write("tail");';
 
-    await runCommandWithOutput(process.execPath, ["-e", script], {
-      cwd: tempDir,
-      stream: false,
-      throwOnError: true,
+    await logger.runWithContext({ logPath }, async () => {
+      await runCommandWithOutput(process.execPath, ["-e", script], {
+        cwd: tempDir,
+        stream: false,
+        throwOnError: true,
+      });
     });
 
     const content = await readFile(logPath, "utf8");
@@ -47,7 +48,6 @@ test("runCommandWithOutput prefixes output lines with command id", async () => {
     expect(content).toContain(`${prefix} err-two`);
     expect(content).toContain(`${prefix} tail`);
   } finally {
-    logger.logPath = undefined;
     await rm(tempDir, { recursive: true, force: true });
   }
 });
@@ -57,18 +57,18 @@ test("runCommandWithOutput preserves parent prefix and increments command ids", 
   const logPath = path.join(tempDir, "run.log");
 
   try {
-    logger.logPath = logPath;
-
-    await logger.runWithContext({ prefix: "[parent]" }, async () => {
-      await runCommandWithOutput(process.execPath, ["-e", 'process.stdout.write("first\\n");'], {
-        cwd: tempDir,
-        stream: false,
-        throwOnError: true,
-      });
-      await runCommandWithOutput(process.execPath, ["-e", 'process.stdout.write("second\\n");'], {
-        cwd: tempDir,
-        stream: false,
-        throwOnError: true,
+    await logger.runWithContext({ logPath }, async () => {
+      await logger.runWithContext({ prefix: "[parent]" }, async () => {
+        await runCommandWithOutput(process.execPath, ["-e", 'process.stdout.write("first\\n");'], {
+          cwd: tempDir,
+          stream: false,
+          throwOnError: true,
+        });
+        await runCommandWithOutput(process.execPath, ["-e", 'process.stdout.write("second\\n");'], {
+          cwd: tempDir,
+          stream: false,
+          throwOnError: true,
+        });
       });
     });
 
@@ -84,7 +84,6 @@ test("runCommandWithOutput preserves parent prefix and increments command ids", 
     expect(content).toContain(`[parent] [${firstId}] first`);
     expect(content).toContain(`[parent] [${secondId}] second`);
   } finally {
-    logger.logPath = undefined;
     await rm(tempDir, { recursive: true, force: true });
   }
 });
@@ -135,9 +134,9 @@ test("runAgentUntilResult logs intended process tree termination after result", 
     "setInterval(() => {}, 1000);",
   ].join("");
 
-  const previousNodeEnv = process.env.NODE_ENV;
+  const previousEnv = process.env.O_AGENTS_ENV;
   try {
-    process.env.NODE_ENV = "test";
+    process.env.O_AGENTS_ENV = "test";
     const waitForResult = (async () => {
       await readFileWhenReady(pidFile);
       return { result: "ok", receivedAt: new Date().toISOString() };
@@ -163,7 +162,7 @@ test("runAgentUntilResult logs intended process tree termination after result", 
     expect(plan.signal).toBe("SIGTERM");
     expect(plan.pid ?? 0).toBeGreaterThan(0);
   } finally {
-    process.env.NODE_ENV = previousNodeEnv;
+    process.env.O_AGENTS_ENV = previousEnv;
     await rm(tempDir, { recursive: true, force: true });
   }
 });

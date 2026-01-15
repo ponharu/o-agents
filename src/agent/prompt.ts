@@ -103,7 +103,8 @@ Requirements:
 - Write or update test code and apply any necessary production code fixes; do not run tests.
 - Commit your changes with a conventional commit prefix: feat|fix|perf|refactor|test|build|chore|ci|docs|style.
 - Push the current branch to origin.
-`.trim();
+
+${RESULT_DELIVERY_INSTRUCTION}`.trim();
 }
 
 export const comparePullRequestsSchema = z.object({

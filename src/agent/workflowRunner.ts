@@ -11,7 +11,7 @@ import {
   ensureTemporaryAgentInstructionsApplied,
   restoreTemporaryAgentInstructions,
 } from "./instructionOverride.ts";
-import type { AgentTool } from "../types.ts";
+import type { AgentRunOptions, AgentTool } from "../types.ts";
 import { O_AGENTS_LOGS_DIR } from "../git/git.ts";
 import { formatRunTimestamp } from "../utils/time.ts";
 
@@ -83,16 +83,17 @@ export async function runNonInteractiveAgent<T>(
     try {
       await ensureTemporaryAgentInstructionsApplied({ cwd });
       const agentCommand = buildAgentCommand(tool, resolvedPrompt);
+      const agentRunOptions: AgentRunOptions = {
+        stream: true,
+        cwd,
+        terminal: agentCommand.terminal,
+        agentGracePeriodMs: 5000,
+      };
       const result = await runAgentUntilResult(
         agentCommand.command,
         agentCommand.args,
         resultServer.waitForResult,
-        {
-          stream: true,
-          cwd,
-          terminal: agentCommand.terminal,
-          agentGracePeriodMs: tool === "gemini-cli" ? 0 : undefined,
-        },
+        agentRunOptions,
       );
       return result.result as T;
     } finally {
@@ -103,7 +104,7 @@ export async function runNonInteractiveAgent<T>(
 }
 
 function injectResponseInstruction(prompt: string, instruction: string): string {
-  if (!prompt.includes(RESULT_DELIVERY_INSTRUCTION)) return prompt;
+  if (!prompt.includes(RESULT_DELIVERY_INSTRUCTION)) return prompt + "\n\n" + instruction;
   return prompt.replaceAll(RESULT_DELIVERY_INSTRUCTION, instruction);
 }
 

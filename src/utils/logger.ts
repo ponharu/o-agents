@@ -1,10 +1,11 @@
 import { appendFileSync } from "node:fs";
 import { AsyncLocalStorage } from "node:async_hooks";
 
-type LogContext = {
+export type LogContext = {
   extraLogPaths?: string[];
   mainPrefix?: string;
   prefix?: string;
+  logPath?: string;
 };
 
 export class Logger {
@@ -51,6 +52,29 @@ export class Logger {
     this.appendToFile({ mainLine: mainText, baseLine: baseText, rawLine: chunk, context });
   }
 
+  writeChunkWithContext(
+    chunk: string,
+    streamToConsole: boolean,
+    isError: boolean,
+    context: LogContext,
+  ): void {
+    if (!chunk) return;
+    const baseText = applyPrefixToText(chunk, context.prefix);
+    const mainText = applyPrefixToText(chunk, mergePrefixes(context.mainPrefix, context.prefix));
+    if (streamToConsole) {
+      if (isError) {
+        process.stderr.write(mainText);
+      } else {
+        process.stdout.write(mainText);
+      }
+    }
+    this.appendToFile({ mainLine: mainText, baseLine: baseText, rawLine: chunk, context });
+  }
+
+  getContextSnapshot(): LogContext {
+    return this.getContext();
+  }
+
   logPrompt(label: string, prompt: string, limit = 4000): void {
     const { text, truncated } = formatPromptForLog(prompt, limit);
     const lengthLabel = truncated ? "truncated" : "full";
@@ -78,8 +102,9 @@ export class Logger {
     rawLine: string;
     context: LogContext;
   }): void {
-    if (this.logPath) {
-      appendFileSync(this.logPath, mainLine);
+    const mainLogPath = context.logPath ?? this.logPath;
+    if (mainLogPath) {
+      appendFileSync(mainLogPath, mainLine);
     }
     const extraLogPaths = new Set<string>([
       ...this.extraLogPaths,
@@ -128,7 +153,12 @@ function mergeLogContext(parent: LogContext, child: LogContext): LogContext {
     extraLogPaths: mergeLogPaths(parent.extraLogPaths, child.extraLogPaths),
     mainPrefix: mergePrefixes(parent.mainPrefix, child.mainPrefix),
     prefix: mergePrefixes(parent.prefix, child.prefix),
+    logPath: mergeLogPath(parent.logPath, child.logPath),
   };
+}
+
+function mergeLogPath(parent?: string, child?: string): string | undefined {
+  return child ?? parent;
 }
 
 function mergeLogPaths(parent?: string[], child?: string[]): string[] | undefined {
