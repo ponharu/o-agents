@@ -46,6 +46,7 @@ export type RunOptions = {
 
 export type AgentRunOptions = RunOptions & {
   agentGracePeriodMs: number;
+  inactivityTimeoutMs?: number;
 };
 
 export type TerminationPlan = {

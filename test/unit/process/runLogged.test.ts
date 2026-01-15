@@ -167,6 +167,73 @@ test("runAgentUntilResult logs intended process tree termination after result", 
   }
 });
 
+test("runAgentUntilResult terminates on output inactivity timeout", async () => {
+  const tempDir = createTestSubDir("run");
+  const terminationPlans: TerminationPlan[] = [];
+  const script = ["setTimeout(() => process.exit(0), 200);", "setInterval(() => {}, 1000);"].join(
+    "",
+  );
+
+  const previousEnv = process.env.O_AGENTS_ENV;
+  try {
+    process.env.O_AGENTS_ENV = "test";
+    const waitForResult: Promise<{ result: unknown; receivedAt: string }> = new Promise(
+      (_resolve) => {},
+    );
+    await expect(
+      runAgentUntilResult(process.execPath, ["-e", script], waitForResult, {
+        cwd: tempDir,
+        stream: false,
+        agentGracePeriodMs: 0,
+        inactivityTimeoutMs: 50,
+        mockTerminateProcessTree: true,
+        onTerminateProcessTree: (plan) => terminationPlans.push(plan),
+      }),
+    ).rejects.toThrow(/No output received from agent/);
+
+    expect(terminationPlans.length).toBeGreaterThan(0);
+    const plan = terminationPlans[0];
+    if (!plan) {
+      throw new Error("Expected a termination plan to be recorded.");
+    }
+    expect(plan.mode).toBe("mock");
+    expect(plan.signal).toBe("SIGTERM");
+  } finally {
+    process.env.O_AGENTS_ENV = previousEnv;
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("runAgentUntilResult ignores output inactivity when output flows", async () => {
+  const tempDir = createTestSubDir("run");
+  const script = [
+    'const interval = setInterval(() => process.stdout.write("tick\\n"), 10);',
+    "setTimeout(() => { clearInterval(interval); process.exit(0); }, 200);",
+  ].join("");
+
+  const previousEnv = process.env.O_AGENTS_ENV;
+  try {
+    process.env.O_AGENTS_ENV = "test";
+    const waitForResult = sleep(120).then(() => ({
+      result: "ok",
+      receivedAt: new Date().toISOString(),
+    }));
+
+    const result = await runAgentUntilResult(process.execPath, ["-e", script], waitForResult, {
+      cwd: tempDir,
+      stream: false,
+      agentGracePeriodMs: 50,
+      inactivityTimeoutMs: 50,
+      mockTerminateProcessTree: true,
+    });
+
+    expect(result.result).toBe("ok");
+  } finally {
+    process.env.O_AGENTS_ENV = previousEnv;
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 async function readFileWhenReady(filePath: string): Promise<string> {
   for (let attempt = 0; attempt < 50; attempt += 1) {
     try {

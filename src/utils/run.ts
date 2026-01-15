@@ -6,6 +6,8 @@ import { type LogContext, type Logger, logger } from "./logger.ts";
 import type { AgentResult } from "../agent/resultServer.ts";
 import { finalizeAgentProcess } from "./terminate.ts";
 
+const DEFAULT_OUTPUT_INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000;
+
 let nextCommandId = 0;
 let commandPromisePool: PromisePool | undefined;
 export function setCommandConcurrency(value?: number): void {
@@ -38,11 +40,77 @@ export async function runAgentUntilResult(
   waitForResult: Promise<AgentResult<unknown>>,
   options: AgentRunOptions,
 ): Promise<AgentResult<unknown>> {
-  const { child, exit, processGroupId } = spawnProcessWithLogging(logger, command, args, options, {
-    detached: true,
-  });
+  const inactivityTimeoutMs = options.inactivityTimeoutMs ?? DEFAULT_OUTPUT_INACTIVITY_TIMEOUT_MS;
+  let child!: ReturnType<typeof spawnProcessWithLogging>["child"];
+  let exit!: ReturnType<typeof spawnProcessWithLogging>["exit"];
+  let processGroupId: ReturnType<typeof spawnProcessWithLogging>["processGroupId"];
+  let inactivityError: Error | undefined;
+  let watchdogTimer: NodeJS.Timeout | undefined;
+  let watchdogReject: ((error: Error) => void) | undefined;
+  let terminationPromise: Promise<void> | undefined;
+  const requestTermination = (gracePeriodMs: number) => {
+    if (!terminationPromise) {
+      terminationPromise = finalizeAgentProcess(
+        logger,
+        child,
+        exit,
+        gracePeriodMs,
+        processGroupId,
+        options.mockTerminateProcessTree,
+        options.onTerminateProcessTree,
+      );
+    }
+    return terminationPromise;
+  };
+  const clearWatchdog = () => {
+    if (watchdogTimer) {
+      clearTimeout(watchdogTimer);
+      watchdogTimer = undefined;
+    }
+  };
+  const formatInactivityLabel = () => {
+    if (inactivityTimeoutMs >= 60_000 && inactivityTimeoutMs % 60_000 === 0) {
+      const minutes = inactivityTimeoutMs / 60_000;
+      return `${minutes} minute${minutes === 1 ? "" : "s"}`;
+    }
+    if (inactivityTimeoutMs >= 1000 && inactivityTimeoutMs % 1000 === 0) {
+      const seconds = inactivityTimeoutMs / 1000;
+      return `${seconds} second${seconds === 1 ? "" : "s"}`;
+    }
+    return `${inactivityTimeoutMs}ms`;
+  };
+  const resetWatchdog = () => {
+    if (!watchdogReject) return;
+    clearWatchdog();
+    watchdogTimer = setTimeout(() => {
+      if (inactivityError) return;
+      const message = `No output received from agent for ${formatInactivityLabel()}; terminating process tree.`;
+      inactivityError = new Error(message);
+      logger.error(message);
+      const reject = watchdogReject;
+      if (reject) {
+        reject(inactivityError);
+      }
+      void requestTermination(0);
+    }, inactivityTimeoutMs);
+  };
+  ({ child, exit, processGroupId } = spawnProcessWithLogging(
+    logger,
+    command,
+    args,
+    options,
+    { detached: true },
+    resetWatchdog,
+  ));
   let result: AgentResult<unknown> | undefined;
   let failure: unknown;
+  const watchdogPromise =
+    inactivityTimeoutMs > 0
+      ? new Promise<AgentResult<unknown>>((_, reject) => {
+          watchdogReject = reject;
+          resetWatchdog();
+        })
+      : undefined;
 
   try {
     result = await Promise.race([
@@ -50,21 +118,16 @@ export async function runAgentUntilResult(
       exit.then(({ code }) => {
         throw new Error(`Agent exited before posting a result (exit ${code ?? "unknown"}).`);
       }),
+      ...(watchdogPromise ? [watchdogPromise] : []),
     ]);
     logger.info(`Received agent result: ${JSON.stringify(result)}`);
   } catch (error) {
     failure = error;
+  } finally {
+    clearWatchdog();
   }
 
-  await finalizeAgentProcess(
-    logger,
-    child,
-    exit,
-    options.agentGracePeriodMs,
-    processGroupId,
-    options.mockTerminateProcessTree,
-    options.onTerminateProcessTree,
-  );
+  await requestTermination(options.agentGracePeriodMs);
 
   if (failure) throw failure;
   return result!;
@@ -86,6 +149,7 @@ function spawnProcessWithLogging(
   args: string[],
   options: RunOptions,
   spawnOptions?: { detached?: boolean },
+  onOutputActivity?: () => void,
 ): {
   child: {
     kill: (signal?: NodeJS.Signals) => boolean;
@@ -99,7 +163,15 @@ function spawnProcessWithLogging(
 } {
   if (options.terminal) {
     return runWithTerminalLoggingContext(logger, command, args, (prefix, context) =>
-      spawnProcessWithTerminal(command, args, options, spawnOptions, prefix, context),
+      spawnProcessWithTerminal(
+        command,
+        args,
+        options,
+        spawnOptions,
+        onOutputActivity,
+        prefix,
+        context,
+      ),
     );
   }
 
@@ -123,6 +195,7 @@ function spawnProcessWithLogging(
 
     child.stdout.on("data", (chunk) => {
       const text = chunk.toString();
+      onOutputActivity?.();
       output.stdout += text;
       output.combined += text;
       stdoutBuffer.write(text);
@@ -130,6 +203,7 @@ function spawnProcessWithLogging(
 
     child.stderr.on("data", (chunk) => {
       const text = chunk.toString();
+      onOutputActivity?.();
       output.stderr += text;
       output.combined += text;
       stderrBuffer.write(text);
@@ -184,6 +258,7 @@ function spawnProcessWithTerminal(
   args: string[],
   options: RunOptions,
   spawnOptions?: { detached?: boolean },
+  onOutputActivity?: () => void,
   prefix?: string,
   context?: LogContext,
 ): {
@@ -230,6 +305,7 @@ function spawnProcessWithTerminal(
     data(_terminal, data) {
       const text = decoder.decode(data, { stream: true });
       if (!text) return;
+      onOutputActivity?.();
       output.stdout += text;
       output.combined += text;
       const normalizedChunk = normalizeTerminalChunk(text);
