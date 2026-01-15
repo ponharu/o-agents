@@ -303,9 +303,11 @@ function spawnProcessWithTerminal(
     cols: 120,
     rows: 40,
     data(_terminal, data) {
+      if (data.byteLength > 0) {
+        onOutputActivity?.();
+      }
       const text = decoder.decode(data, { stream: true });
       if (!text) return;
-      onOutputActivity?.();
       output.stdout += text;
       output.combined += text;
       const normalizedChunk = normalizeTerminalChunk(text);
