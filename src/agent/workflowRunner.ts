@@ -129,7 +129,7 @@ function buildResponseInstruction(
   const isJson = Boolean(schema);
   const payloadDescription = isJson
     ? "valid JSON"
-    : "plain text (write 'DONE' if no specific result is required)";
+    : "plain text (write 'DONE' only if no response content is required beyond confirming completion)";
   const instructionLines = [
     `Write your response to "${logFilePath}" as ${payloadDescription} and submit it using this curl command (retry until successful):`,
   ];

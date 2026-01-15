@@ -7,7 +7,7 @@ export const RESULT_DELIVERY_INSTRUCTION = "{RESULT_DELIVERY_INSTRUCTION}";
 
 export function buildPlanPrompt({ issueData }: { issueData: IssueData }): string {
   return `
-Create an implementation plan for modifying files in the current repository to resolve the request below, and deliver the plan as markdown content using the response instructions that follow.
+Create an implementation plan for modifying files in the current repository to resolve the request below. Return the plan as markdown content following the response instructions appended to the end of this prompt.
 
 Request:
 ~~~~yaml
@@ -54,7 +54,7 @@ ${RESULT_DELIVERY_INSTRUCTION}`.trim();
 
 export function buildReviewPrompt({ headBranch }: { headBranch: string }): string {
   return `
-Review the changes from the current branch compared to the \`${headBranch}\` branch, and deliver the review comments as a JSON array using the response instructions that follow.
+Review the changes from the current branch compared to the \`${headBranch}\` branch. Return the review comments as a JSON array following the response instructions appended to the end of this prompt.
 
 ${RESULT_DELIVERY_INSTRUCTION}`.trim();
 }
@@ -65,7 +65,7 @@ export function buildReviewResolutionPrompt({
   reviewComments: unknown[];
 }): string {
   return `
-Address the review comments below, and deliver a response to each comment as a JSON array using the response instructions that follow.
+Address the review comments below. Return a response to each comment as a JSON array following the response instructions appended to the end of this prompt.
 
 Review comments:
 ~~~~yaml
@@ -122,7 +122,7 @@ export function buildComparePullRequestsPrompt({
   return `
 Compare the pull requests below and select the best implementation based on the rubric.
 If any improvements from other PRs are worth integrating, move to the worktree directory of the best PR, manually apply the improvements, commit, and push the updates.
-Finally, deliver a JSON response with the best PR URL (or "N/A" if none are acceptable) and a brief reason using the response instructions that follow.
+Finally, return a JSON response with the best PR URL (or "N/A" if none are acceptable) and a brief reason following the response instructions appended to the end of this prompt.
 
 Rubric (prioritize in order):
 1. Correctness: Fully addresses the issue request without introducing bugs.
