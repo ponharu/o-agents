@@ -22,6 +22,7 @@ ${YAML.stringify(
 ~~~~
   
 Requirements:
+- Prioritize the most recent comment (at the bottom of the comments list) over the issue body and older comments when interpreting the request.
 - Create a plan only; do not modify any files.
 - Find and thoroughly read all relevant files to understand the current implementation.
 - If external libraries or APIs are required:
