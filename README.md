@@ -5,12 +5,16 @@ It fetches the issue/PR via `gh`, creates a branch, runs the selected agent work
 
 ## Requirements
 
-- Bun
+- [Node.js](https://nodejs.org/)
+  - `o-agents` launches agents via `npx` because `@google/gemini-cli` and `octofriend` cannot work with `bunx --bun` reliably.
+- [Bun](https://bun.com/)
+  - `o-agents` itself runs only with Bun.
 - `gh` authenticated to the target repo
 - One of:
   - `@openai/codex`
   - `@anthropic-ai/claude-code`
-  - ~~`@google/gemini-cli`~~ (Unusable due to https://github.com/google-gemini/gemini-cli/issues/16567)
+  - `@google/gemini-cli` (Unstable due to https://github.com/google-gemini/gemini-cli/issues/16567)
+  - `octofriend`
 
 ## Installation
 
