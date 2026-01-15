@@ -1,6 +1,12 @@
 import type { IssueData, RepoInfo, WorkKind } from "../types.ts";
 import { runCommandWithOutput } from "../utils/run.ts";
 
+type GitHubIssueComment = {
+  id: number;
+  body?: string;
+  html_url?: string;
+};
+
 export async function getRepoInfo(): Promise<RepoInfo> {
   const repoResult = await runCommandWithOutput(
     "gh",
@@ -8,6 +14,47 @@ export async function getRepoInfo(): Promise<RepoInfo> {
     { throwOnError: true, cwd: process.cwd() },
   );
   return JSON.parse(repoResult.stdout) as RepoInfo;
+}
+
+export async function upsertComparisonComment(options: {
+  repo: string;
+  targetNumber: number;
+  body: string;
+  marker: string;
+}): Promise<{ action: "created" | "updated"; htmlUrl?: string }> {
+  const { repo, targetNumber, body, marker } = options;
+  const listResult = await runCommandWithOutput(
+    "gh",
+    ["api", `repos/${repo}/issues/${targetNumber}/comments`, "--paginate"],
+    { throwOnError: true, cwd: process.cwd() },
+  );
+  const comments = parseGhApiJson<GitHubIssueComment[]>(listResult.stdout, "issue comments");
+  const existing = comments.find((comment) => (comment.body ?? "").includes(marker));
+
+  if (existing) {
+    const updateResult = await runCommandWithOutput(
+      "gh",
+      [
+        "api",
+        "--method",
+        "PATCH",
+        `repos/${repo}/issues/comments/${existing.id}`,
+        "-f",
+        `body=${body}`,
+      ],
+      { throwOnError: true, cwd: process.cwd() },
+    );
+    const updated = parseGhApiJson<GitHubIssueComment>(updateResult.stdout, "updated comment");
+    return { action: "updated", htmlUrl: updated.html_url };
+  }
+
+  const createResult = await runCommandWithOutput(
+    "gh",
+    ["api", `repos/${repo}/issues/${targetNumber}/comments`, "-f", `body=${body}`],
+    { throwOnError: true, cwd: process.cwd() },
+  );
+  const created = parseGhApiJson<GitHubIssueComment>(createResult.stdout, "created comment");
+  return { action: "created", htmlUrl: created.html_url };
 }
 
 async function getIssueData(issueNumber: number): Promise<IssueData> {
@@ -119,5 +166,17 @@ function parseGhNumber(output: string): number | undefined {
     return undefined;
   } catch {
     return undefined;
+  }
+}
+
+function parseGhApiJson<T>(output: string, context: string): T {
+  if (!output.trim()) {
+    throw new Error(`Empty response from gh api for ${context}.`);
+  }
+  try {
+    return JSON.parse(output) as T;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Failed to parse gh api ${context} response: ${message}`);
   }
 }

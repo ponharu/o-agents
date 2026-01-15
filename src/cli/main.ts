@@ -5,7 +5,12 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import type { ZodTypeAny } from "zod";
 import { runNonInteractiveAgent, setAgentConcurrency } from "../agent/workflowRunner.ts";
 import { parseArgs } from "./parseArgs.ts";
-import { fetchIssueOrPullRequestData, getRepoInfo, resolveTargetKind } from "../github/gh.ts";
+import {
+  fetchIssueOrPullRequestData,
+  getRepoInfo,
+  resolveTargetKind,
+  upsertComparisonComment,
+} from "../github/gh.ts";
 import {
   createWorktree,
   ensureCleanGit,
@@ -382,6 +387,8 @@ function shouldSerializeInitCommand(command: string, args: string[]): boolean {
   return false;
 }
 
+const COMPARE_COMMENT_MARKER = "<!-- o-agents:compare-result -->";
+
 async function comparePullRequestsIfNeeded(options: {
   issueData: IssueData;
   results: WorkflowRunResult[];
@@ -410,10 +417,50 @@ async function comparePullRequestsIfNeeded(options: {
     });
     logger.info(`Best PR: ${comparison.bestPrUrl}`);
     logger.info(`Selection reason: ${comparison.reason}`);
+
+    const repoName = issueData.repo?.nameWithOwner;
+    const issueNumber = issueData.number;
+    if (!repoName || !issueNumber) {
+      logger.error("Comparison comment skipped: missing repository info or issue number.");
+      return;
+    }
+
+    const body = buildComparisonCommentBody({
+      bestPrUrl: comparison.bestPrUrl,
+      reason: comparison.reason,
+    });
+    try {
+      const result = await upsertComparisonComment({
+        repo: repoName,
+        targetNumber: issueNumber,
+        body,
+        marker: COMPARE_COMMENT_MARKER,
+      });
+      const actionLabel = result.action === "updated" ? "Updated" : "Created";
+      const location = result.htmlUrl ? ` at ${result.htmlUrl}` : ".";
+      logger.info(`${actionLabel} comparison comment${location}`);
+    } catch (error) {
+      const message = getErrorMessage(error);
+      logger.error(`Failed to post comparison comment: ${message}`);
+      if (message.toLowerCase().includes("auth")) {
+        logger.error("Verify gh CLI authentication (gh auth login) and token permissions.");
+      }
+    }
   } catch (error) {
     const message = getErrorMessage(error);
     logger.error(`Failed to compare pull requests: ${message}`);
   }
+}
+
+function buildComparisonCommentBody(options: { bestPrUrl?: string; reason?: string }): string {
+  const winner = (options.bestPrUrl ?? "").trim();
+  const winnerText = winner && winner !== "N/A" ? winner : "No acceptable PR selected";
+  const reasoning = (options.reason ?? "").trim() || "No reasoning provided.";
+  return `${COMPARE_COMMENT_MARKER}
+## O-Agents Comparison Result
+🏆 Winner: ${winnerText}
+🤔 Reasoning:
+${reasoning}`;
 }
 
 function resolveWorkflowSpecs(args: ParsedArgs): {
