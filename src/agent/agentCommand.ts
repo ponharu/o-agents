@@ -37,18 +37,17 @@ export function buildAgentCommand(
         ],
       };
     case "gemini-cli":
-      // Use script command with --prompt-interactive to avoid https://github.com/google-gemini/gemini-cli/issues/16567
+      // "--output-format stream-json" is required to avoid https://github.com/google-gemini/gemini-cli/issues/16567
       return {
-        command: "script",
+        command,
         args: [
-          "-q",
-          "/dev/null",
-          "npx",
-          "--yes",
+          ...argsPrefix,
           "@google/gemini-cli@latest",
           "--approval-mode",
           "yolo",
-          "--prompt-interactive",
+          "--output-format",
+          "stream-json",
+          "--prompt",
           prompt,
         ],
       };

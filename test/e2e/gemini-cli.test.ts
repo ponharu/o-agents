@@ -50,3 +50,39 @@ test(
   },
   { timeout: TEST_TIMEOUT },
 );
+
+// To speed up test suite, this test is skipped by default.
+test.skip(
+  "agent-benchmark issue #167 e2e",
+  async () => {
+    await runAgentBenchmarkCase({
+      issueRef: "#167",
+      workflowPath: WORKFLOW_SIMPLE_PATH,
+      mainTool: "gemini-cli",
+      validateOutput: async (repoDir) => {
+        const packageJsonResult = await runCommand(["cat", "package.json"], {
+          cwd: repoDir,
+          throwOnError: false,
+        });
+        console.log(packageJsonResult.combined);
+
+        const parsed = JSON.parse(packageJsonResult.stdout) as {
+          dependencies?: Record<string, string>;
+        };
+        expect(parsed.dependencies?.["commander"]).toBeDefined();
+        expect(parsed.dependencies?.["yargs"]).toBeUndefined();
+        expect(packageJsonResult.exitCode).toBe(0);
+
+        const runResult = await runCommand(["bun", "run", "src/index.ts", "hello"], {
+          cwd: repoDir,
+          throwOnError: false,
+        });
+        console.log(runResult.combined);
+
+        expect(runResult.stdout.trim().length).toBeGreaterThan(0);
+        expect(runResult.exitCode).toBe(0);
+      },
+    });
+  },
+  { timeout: TEST_TIMEOUT },
+);
