@@ -136,6 +136,22 @@ args = ["--main", "codex-cli"]
     expect(parsed.target).toBe("123");
   });
 
+  test("parseArgsWithConfig supports custom agents and aliases", () => {
+    writeConfig(`
+[config.simple]
+args = ["--main", "my-agent", "o-agents/workflowWithTests.ts"]
+
+[agents.my-agent]
+cmd = ["my-agent"]
+aliases = ["my"]
+`);
+
+    const argv = ["node", "o-agents", "simple", "--target", "123", "--compare", "my"];
+    const parsed = parseArgsWithConfig(argv, TEST_DIR);
+    expect(parsed.main?.tool).toBe("my-agent");
+    expect(parsed.compare?.[0]?.tool).toBe("my-agent");
+  });
+
   test("parseArgsWithConfig CLI args override config args", () => {
     writeConfig(`
 [config.simple]

@@ -1,59 +1,48 @@
 import type { AgentTool } from "../types.ts";
+import { type AgentRegistry, createAgentRegistry, getAgentDefinition } from "./agentRegistry.ts";
+import { loadConfigFile } from "../config/oAgentsConfig.ts";
+
+const registryCache = new Map<string, AgentRegistry>();
 
 export function buildAgentCommand(
   tool: AgentTool,
   prompt: string,
+  configDir: string = process.cwd(),
 ): {
   commandArgs: [string, ...string[]];
   terminal?: boolean;
-  versionCommandArgs: [string, ...string[]];
+  versionCommandArgs?: [string, ...string[]];
 } {
-  switch (tool) {
-    case "codex-cli":
-      return {
-        commandArgs: [
-          "npx",
-          "--yes",
-          "@openai/codex@latest",
-          "exec",
-          "--dangerously-bypass-approvals-and-sandbox",
-          prompt,
-        ],
-        versionCommandArgs: ["npx", "--yes", "@openai/codex@latest", "--version"],
-      };
-    case "octofriend":
-      return {
-        commandArgs: ["npx", "--yes", "octofriend@latest", "prompt", prompt],
-        versionCommandArgs: ["npx", "--yes", "octofriend@latest", "version"],
-      };
-    case "claude-code":
-      return {
-        commandArgs: [
-          "npx",
-          "--yes",
-          "@anthropic-ai/claude-code@latest",
-          "--dangerously-skip-permissions",
-          "--allowed-tools",
-          "Bash,Edit,Write",
-          "--print",
-          prompt,
-        ],
-        versionCommandArgs: ["npx", "--yes", "@anthropic-ai/claude-code@latest", "--version"],
-      };
-    case "gemini-cli":
-      // "--prompt-interactive" is required to avoid https://github.com/google-gemini/gemini-cli/issues/16567
-      return {
-        commandArgs: [
-          "npx",
-          "--yes",
-          "@google/gemini-cli@latest",
-          "--approval-mode",
-          "yolo",
-          "--prompt-interactive",
-          prompt,
-        ],
-        versionCommandArgs: ["npx", "--yes", "@google/gemini-cli@latest", "--version"],
-        terminal: true,
-      };
+  const registry = getRegistry(configDir);
+  const definition = getAgentDefinition(registry, tool);
+  if (!definition) {
+    throw new Error(`Unknown agent tool "${tool}".`);
   }
+  const [executable, ...rest] = definition.cmd;
+  if (!executable) {
+    throw new Error(`Agent '${definition.name}' has an empty cmd array.`);
+  }
+
+  const commandArgs: [string, ...string[]] = [executable, ...rest, prompt];
+  const versionCommandArgs =
+    definition.versionCmd && definition.versionCmd.length > 0
+      ? (definition.versionCmd as [string, ...string[]])
+      : undefined;
+
+  return {
+    commandArgs,
+    terminal: definition.terminal,
+    versionCommandArgs,
+  };
+}
+
+function getRegistry(configDir: string): AgentRegistry {
+  const cached = registryCache.get(configDir);
+  if (cached) {
+    return cached;
+  }
+  const config = loadConfigFile(configDir);
+  const registry = createAgentRegistry(config);
+  registryCache.set(configDir, registry);
+  return registry;
 }

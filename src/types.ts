@@ -1,4 +1,4 @@
-export type AgentTool = "codex-cli" | "claude-code" | "gemini-cli" | "octofriend";
+export type AgentTool = string;
 export type WorkKind = "issue" | "pr";
 export type WorkflowSpec = {
   tool: AgentTool;

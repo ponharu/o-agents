@@ -1,15 +1,15 @@
 import { Command } from "commander";
 
-import type { AgentTool, ParsedArgs, WorkflowSpec } from "../types.ts";
-import { getConfigArgs, getConfigNames, loadConfigFile } from "./config.ts";
+import type { ParsedArgs, WorkflowSpec } from "../types.ts";
+import { getConfigArgs, getConfigNames, loadConfigFile } from "../config/oAgentsConfig.ts";
+import {
+  createAgentRegistry,
+  getAgentChoices,
+  isAgentNameOrAlias,
+  resolveAgentNameOrAlias,
+  type AgentRegistry,
+} from "../agent/agentRegistry.ts";
 
-const AGENT_CHOICES = ["codex-cli", "claude-code", "gemini-cli", "octofriend"] as const;
-const AGENT_ALIASES: Record<string, AgentTool> = {
-  codex: "codex-cli",
-  claude: "claude-code",
-  gemini: "gemini-cli",
-  octo: "octofriend",
-};
 const DEFAULT_MAIN_WORKFLOW = "o-agents/workflowNoTest.ts";
 const DEFAULT_INIT_COMMAND = "npx --yes @antfu/ni@latest";
 
@@ -24,9 +24,20 @@ Usage:
 Config file (o-agents/config.toml):
   [config.simple]
   args = ["--main", "codex-cli", "--workflow", "o-agents/workflowSimple.ts"]
+
+  [agents.my-custom-agent]
+  cmd = ["my-agent", "--flag"]
+  aliases = ["my"]
+  terminal = true
+
+  [agents.claude-code]
+  cmd = ["npx", "--yes", "@anthropic-ai/claude-code@latest", "--print"]
 `;
 
-export function parseArgs(argv: string[]): ParsedArgs {
+export function parseArgs(
+  argv: string[],
+  registry: AgentRegistry = createAgentRegistry(),
+): ParsedArgs {
   const program = new Command();
   program
     .name("o-agents")
@@ -85,13 +96,13 @@ export function parseArgs(argv: string[]): ParsedArgs {
   ) {
     throw new Error("--command-concurrency must be a positive integer.");
   }
-  const mainSpec = parseWorkflowSpec(options.main, {
+  const mainSpec = parseWorkflowSpec(options.main, registry, {
     defaultWorkflow: DEFAULT_MAIN_WORKFLOW,
     defaultParams: undefined,
   });
-  const compareSpecs = splitCompareValues(options.compare ?? []);
+  const compareSpecs = splitCompareValues(options.compare ?? [], registry);
   const compare = compareSpecs.map((spec) =>
-    parseWorkflowSpec(spec, {
+    parseWorkflowSpec(spec, registry, {
       defaultWorkflow: mainSpec.workflow,
       defaultParams: mainSpec.params,
     }),
@@ -113,6 +124,7 @@ function parseConcurrency(value: string): number {
 
 function parseWorkflowSpec(
   parts: string[],
+  registry: AgentRegistry,
   defaults?: { defaultWorkflow: string; defaultParams: string | undefined },
 ): WorkflowSpec {
   if (parts.length === 0) {
@@ -123,11 +135,11 @@ function parseWorkflowSpec(
   if (!toolRaw) {
     throw new Error("Workflow spec must start with an agent tool.");
   }
-  const tool = resolveAgentTool(toolRaw);
+  const tool = resolveAgentTool(toolRaw, registry);
 
   if (!tool) {
     throw new Error(
-      `Unknown agent tool "${toolRaw}". Expected one of: ${AGENT_CHOICES.join(", ")}.`,
+      `Unknown agent tool "${toolRaw}". Expected one of: ${getAgentChoices(registry).join(", ")}.`,
     );
   }
 
@@ -149,29 +161,16 @@ function parseWorkflowSpec(
   };
 }
 
-function resolveAgentTool(value: string): AgentTool | undefined {
-  const normalized = value.trim();
-  const mapped = AGENT_ALIASES[normalized] ?? normalized;
-  if (isAgentTool(mapped)) {
-    return mapped;
-  }
-  return undefined;
+function resolveAgentTool(value: string, registry: AgentRegistry): string | undefined {
+  return resolveAgentNameOrAlias(registry, value);
 }
 
-function isAgentTool(value: string): value is AgentTool {
-  return (AGENT_CHOICES as readonly string[]).includes(value);
-}
-
-function isAgentNameOrAlias(value: string): boolean {
-  return isAgentTool(value) || value in AGENT_ALIASES;
-}
-
-function splitCompareValues(values: string[]): string[][] {
+function splitCompareValues(values: string[], registry: AgentRegistry): string[][] {
   const specs: string[][] = [];
   let current: string[] = [];
 
   for (const value of values) {
-    if (isAgentNameOrAlias(value)) {
+    if (isAgentNameOrAlias(registry, value)) {
       if (current.length > 0) {
         specs.push(current);
       }
@@ -314,6 +313,7 @@ function getOptionName(arg: string): string | undefined {
 export function parseArgsWithConfig(argv: string[], configDir: string = process.cwd()): ParsedArgs {
   const { configName, remainingArgv } = extractConfigInfo(argv);
   const config = loadConfigFile(configDir);
+  const registry = createAgentRegistry(config);
 
   if (configName) {
     if (!config) {
@@ -332,8 +332,8 @@ export function parseArgsWithConfig(argv: string[], configDir: string = process.
     }
 
     const mergedArgv = mergeArgv(argv.slice(0, 2), configArgs, remainingArgv);
-    return parseArgs(mergedArgv);
+    return parseArgs(mergedArgv, registry);
   }
 
-  return parseArgs(remainingArgv);
+  return parseArgs(remainingArgv, registry);
 }

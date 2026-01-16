@@ -5,17 +5,18 @@ It fetches the issue/PR via `gh`, creates a branch, runs the selected agent work
 
 ## Requirements
 
-- [Bun](https://bun.com/)
-  - `o-agents` itself runs only with Bun.
-- [Node.js](https://nodejs.org/)
-  - `o-agents` launches agents via `npx` because `@google/gemini-cli` and `octofriend` cannot work with `npx --yes` reliably.
-- Supported OS: WSL (Linux), macOS, Linux. Windows is not supported.
+- [Bun](https://bun.com/) — `o-agents` itself runs only with Bun
+- [Node.js](https://nodejs.org/) — agents are launched via `npx`
+- Supported OS: WSL (Linux), macOS, Linux (Windows is not supported)
 - `gh` authenticated to the target repo
-- One of (short names are o-agents aliases):
-  - `@openai/codex` (`codex`)
-  - `@anthropic-ai/claude-code` (`claude`)
-  - `@google/gemini-cli` (`gemini`) (Unstable due to https://github.com/google-gemini/gemini-cli/issues/16567)
-  - `octofriend` (`octo`) (Unstable)
+- One of the supported agents:
+
+| Agent                       | Alias    | Status                                                                       |
+| --------------------------- | -------- | ---------------------------------------------------------------------------- |
+| `@openai/codex`             | `codex`  | Stable                                                                       |
+| `@anthropic-ai/claude-code` | `claude` | Stable                                                                       |
+| `@google/gemini-cli`        | `gemini` | Unstable ([issue](https://github.com/google-gemini/gemini-cli/issues/16567)) |
+| `octofriend`                | `octo`   | Unstable                                                                     |
 
 ## Installation
 
@@ -28,46 +29,114 @@ If you prefer not to install globally, run from the repo with `bun run start`.
 
 ## Usage
 
+### Basic Examples
+
 ```sh
+# Use a config preset
 o-agents simple --target 123
+
+# Specify agent directly
 o-agents --target 123 --main codex
 o-agents --target 123 --main claude o-agents/workflowWithTests.ts
-o-agents --target 456 --main gemini o-agents/workflowWithTests.ts
+
+# Pass workflow parameters (JSON string or file path)
 o-agents --target 123 --main codex o-agents/workflowWithTests.ts '{"testCommand":["bun","test"]}'
 o-agents --target 123 --main codex o-agents/workflowWithTests.ts ./params.json
+
+# Compare multiple agents
+o-agents --target 123 --main codex --compare claude
 o-agents --target 123 --main codex o-agents/workflowWithTests.ts --compare claude o-agents/workflowWithTests.ts
-o-agents --target 123 --main codex --concurrency 2 --compare claude
-o-agents --target 123 --main codex --command-concurrency 1 --compare claude
-o-agents --target 123 --main codex --init "npx --yes @antfu/ni@latest"
+
+# Use GitHub URL as target
 o-agents --target https://github.com/org/repo/issues/123 --main codex
 ```
 
-You can also save argument presets in a TOML file and invoke them with `o-agents <name>`.
-`o-agents` reads `o-agents/config.toml` from the current directory.
+### Options
+
+| Option                  | Description                                                                      | Default                      |
+| ----------------------- | -------------------------------------------------------------------------------- | ---------------------------- |
+| `--target`              | Issue/PR number or GitHub URL                                                    | (required)                   |
+| `--main`                | Main agent and optional workflow/params                                          | `o-agents/workflowNoTest.ts` |
+| `--compare`             | Additional agents to compare (inherits workflow/params from `--main` if omitted) | —                            |
+| `--concurrency`         | Max concurrent workflows (main/compare)                                          | `1`                          |
+| `--command-concurrency` | Max concurrent external commands (tests/builds)                                  | unlimited                    |
+| `--init`                | Initialization command run once per worktree                                     | `npx --yes @antfu/ni@latest` |
+
+## Configuration
+
+`o-agents` reads configuration from `o-agents/config.toml` in the current directory.
+
+### Presets
+
+Save argument presets to invoke with `o-agents <name>`:
 
 ```toml
 [config.simple]
 args = ["--main", "codex", "o-agents/workflowSimple.ts"]
+
+[config.test]
+args = ["--main", "claude", "o-agents/workflowWithTests.ts"]
 ```
 
-Workflows run sequentially by default (`--concurrency 1`).
-Use `--concurrency` to control how many workflows can run at the same time (main/compare).
-Use `--command-concurrency` to cap how many external commands started by workflows (like tests/builds) can run at once.
-If you omit `--command-concurrency`, there is no extra limit beyond how many workflows are running.
-Comparison happens only when at least two PR URLs are created.
-Initialization runs once per worktree using `--init` (default: `npx --yes @antfu/ni@latest`).
+### Custom Agents
 
-Use the short agent names: `codex`, `claude`, `gemini`, `octo`.
-If `--main` omits workflow/params entirely, it defaults to `o-agents/workflowNoTest.ts`.
-Shorthand `--compare <agent>` inherits the workflow/params from `--main`.
-If `--main` omits params, the workflow uses its defaults. Params can be a JSON string or a path to a JSON file.
+Define new agents or override built-in agents:
+
+```toml
+[agents.my-custom-agent]
+cmd = ["my-agent", "--flag"]
+aliases = ["my"]
+terminal = true
+
+# Override built-in claude-code with simpler flags
+[agents.claude-code]
+cmd = ["npx", "--yes", "@anthropic-ai/claude-code@latest", "--print"]
+```
+
+The prompt is appended as the final argument to `cmd` automatically.
+
+### Default Agent Configurations
+
+For reference, here are the built-in agent configurations:
+
+<details>
+<summary>Click to expand</summary>
+
+```toml
+[agents.codex-cli]
+cmd = ["npx", "--yes", "@openai/codex@latest", "exec", "--dangerously-bypass-approvals-and-sandbox"]
+aliases = ["codex"]
+versionCmd = ["npx", "--yes", "@openai/codex@latest", "--version"]
+
+[agents.claude-code]
+cmd = ["npx", "--yes", "@anthropic-ai/claude-code@latest", "--dangerously-skip-permissions", "--allowed-tools", "Bash,Edit,Write", "--print"]
+aliases = ["claude"]
+versionCmd = ["npx", "--yes", "@anthropic-ai/claude-code@latest", "--version"]
+
+[agents.gemini-cli]
+cmd = ["npx", "--yes", "@google/gemini-cli@latest", "--approval-mode", "yolo", "--prompt-interactive"]
+aliases = ["gemini"]
+terminal = true
+versionCmd = ["npx", "--yes", "@google/gemini-cli@latest", "--version"]
+
+[agents.octofriend]
+cmd = ["npx", "--yes", "octofriend@latest", "prompt"]
+aliases = ["octo"]
+versionCmd = ["npx", "--yes", "octofriend@latest", "version"]
+```
+
+</details>
+
+## Logs
 
 Logs are written under `.o-agents-logs/`:
 
-- `.o-agents-logs/app/<runTimestamp>/run-<issue|pr>-<id>.log`
-- `.o-agents-logs/app/<runTimestamp>/workflow-<runLabel>-<kind>-<index>.log`
-- `.o-agents-logs/response/<timestamp>.log`
-- `.o-agents-logs/test/<timestamp>/`
+| Path                                                                       | Description           |
+| -------------------------------------------------------------------------- | --------------------- |
+| `.o-agents-logs/app/<runTimestamp>/run-<issue\|pr>-<id>.log`               | Main run log          |
+| `.o-agents-logs/app/<runTimestamp>/workflow-<runLabel>-<kind>-<index>.log` | Workflow log          |
+| `.o-agents-logs/response/<timestamp>.log`                                  | Agent response log    |
+| `.o-agents-logs/test/<timestamp>/`                                         | Test output directory |
 
 ## Contributing
 

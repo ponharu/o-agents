@@ -576,6 +576,9 @@ async function printRunSummaryList(results: WorkflowRunResult[]): Promise<void> 
 
 async function resolveAgentVersion(tool: AgentTool): Promise<string | undefined> {
   const command = buildAgentCommand(tool, "");
+  if (!command.versionCommandArgs) {
+    return undefined;
+  }
   const [executable, ...args] = command.versionCommandArgs;
   const versionResult = await runCommandWithOutput(executable, args, {
     cwd: process.cwd(),

@@ -1,7 +1,11 @@
 import { expect, test, describe, beforeEach, afterEach } from "bun:test";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { loadConfigFile, getConfigArgs, getConfigNames } from "../../../src/cli/config.ts";
+import {
+  loadConfigFile,
+  getConfigArgs,
+  getConfigNames,
+} from "../../../src/config/oAgentsConfig.ts";
 
 const TEST_DIR = join(import.meta.dir, ".test-config");
 const CONFIG_DIR = join(TEST_DIR, "o-agents");
@@ -39,6 +43,46 @@ args = ["--main", "codex-cli", "--workflow", "o-agents/workflowWithTests.ts"]
     expect(getConfigNames(config!)).toEqual(["simple", "test"]);
   });
 
+  test("loadConfigFile parses agent definitions", () => {
+    writeConfig(`
+[agents.custom]
+cmd = ["custom", "--flag"]
+aliases = ["c"]
+terminal = true
+versionCmd = ["custom", "--version"]
+`);
+
+    const config = loadConfigFile(TEST_DIR);
+    expect(config).toBeDefined();
+    expect(config?.agents.custom?.cmd).toEqual(["custom", "--flag"]);
+    expect(config?.agents.custom?.aliases).toEqual(["c"]);
+    expect(config?.agents.custom?.terminal).toBe(true);
+    expect(config?.agents.custom?.versionCmd).toEqual(["custom", "--version"]);
+  });
+
+  test("loadConfigFile allows agents without config presets", () => {
+    writeConfig(`
+[agents.only]
+cmd = ["agent"]
+`);
+
+    const config = loadConfigFile(TEST_DIR);
+    expect(config).toBeDefined();
+    expect(getConfigNames(config!)).toEqual([]);
+  });
+
+  test("loadConfigFile returns empty config and agents for unrecognized sections", () => {
+    writeConfig(`
+[other]
+key = "value"
+`);
+
+    const config = loadConfigFile(TEST_DIR);
+    expect(config).toBeDefined();
+    expect(config!.config).toEqual({});
+    expect(config!.agents).toEqual({});
+  });
+
   test("getConfigArgs returns correct args for named config", () => {
     writeConfig(`
 [config.myconfig]
@@ -59,15 +103,6 @@ args = ["--main", "codex"]
     const config = loadConfigFile(TEST_DIR);
     const args = getConfigArgs(config!, "nonexistent");
     expect(args).toBeUndefined();
-  });
-
-  test("loadConfigFile throws on missing config section", () => {
-    writeConfig(`
-[other]
-key = "value"
-`);
-
-    expect(() => loadConfigFile(TEST_DIR)).toThrow("missing 'config' section");
   });
 
   test("loadConfigFile throws on missing args array", () => {
@@ -95,6 +130,48 @@ args = ["--target", "123", "--main", "codex-cli"]
 `);
 
     expect(() => loadConfigFile(TEST_DIR)).toThrow("not allowed");
+  });
+
+  test("loadConfigFile throws on missing agent cmd", () => {
+    writeConfig(`
+[agents.bad]
+aliases = ["nope"]
+`);
+
+    expect(() => loadConfigFile(TEST_DIR)).toThrow("must have 'cmd' array");
+  });
+
+  test("loadConfigFile throws on empty agent cmd", () => {
+    writeConfig(`
+[agents.bad]
+cmd = []
+`);
+
+    expect(() => loadConfigFile(TEST_DIR)).toThrow("cmd must be a non-empty array");
+  });
+
+  test("loadConfigFile throws on non-string aliases", () => {
+    writeConfig(`
+[agents.bad]
+cmd = ["agent"]
+aliases = [123]
+`);
+
+    expect(() => loadConfigFile(TEST_DIR)).toThrow("all aliases must be strings");
+  });
+
+  test("loadConfigFile throws on duplicate aliases", () => {
+    writeConfig(`
+[agents.one]
+cmd = ["agent"]
+aliases = ["dup"]
+
+[agents.two]
+cmd = ["agent"]
+aliases = ["dup"]
+`);
+
+    expect(() => loadConfigFile(TEST_DIR)).toThrow("duplicates alias");
   });
 
   test("getConfigNames returns empty array for empty config", () => {

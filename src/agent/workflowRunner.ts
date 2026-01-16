@@ -27,6 +27,7 @@ type RunNonInteractiveAgentsOptions<T> = {
   tools: AgentTool[];
   prompt: string;
   cwd: string;
+  configDir?: string;
   schema?: ZodType<T>;
 };
 
@@ -39,7 +40,7 @@ export async function runNonInteractiveAgents<T>(
 export async function runNonInteractiveAgents<T>(
   options: RunNonInteractiveAgentsOptions<T>,
 ): Promise<T[]> {
-  const { tools, prompt, cwd } = options;
+  const { tools, prompt, cwd, configDir } = options;
   const seenTools = new Set<AgentTool>();
   const uniqueTools = tools.filter((tool) => {
     if (seenTools.has(tool)) return false;
@@ -49,11 +50,11 @@ export async function runNonInteractiveAgents<T>(
   const schema = options.schema;
   if (schema) {
     return Promise.all(
-      uniqueTools.map((tool) => runNonInteractiveAgent({ tool, prompt, cwd, schema })),
+      uniqueTools.map((tool) => runNonInteractiveAgent({ tool, prompt, cwd, configDir, schema })),
     );
   }
   return Promise.all(
-    uniqueTools.map((tool) => runNonInteractiveAgent({ tool, prompt, cwd })),
+    uniqueTools.map((tool) => runNonInteractiveAgent({ tool, prompt, cwd, configDir })),
   ) as Promise<T[]>;
 }
 
@@ -61,6 +62,7 @@ type RunNonInteractiveAgentOptions<T> = {
   tool: AgentTool;
   prompt: string;
   cwd: string;
+  configDir?: string;
   schema?: ZodType<T>;
 };
 
@@ -76,13 +78,14 @@ export async function runNonInteractiveAgent<T>(
   const pool = getPromisePool(options.tool);
   return pool.runAndWaitForReturnValue(async () => {
     const { tool, prompt, cwd } = options;
+    const configDir = options.configDir ?? process.cwd();
     const schema = options.schema as ZodType<T> | undefined;
     const resultServer = await startResultServer(schema);
     const instruction = buildResponseInstruction(resultServer.url, schema).instruction;
     const resolvedPrompt = injectResponseInstruction(prompt, instruction);
     try {
       await ensureTemporaryAgentInstructionsApplied({ cwd });
-      const agentCommand = buildAgentCommand(tool, resolvedPrompt);
+      const agentCommand = buildAgentCommand(tool, resolvedPrompt, configDir);
       const [agentExecutable, ...agentExecArgs] = agentCommand.commandArgs;
       const agentRunOptions: AgentRunOptions = {
         stream: true,
