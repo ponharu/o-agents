@@ -119,8 +119,6 @@ test("runCommandWithOutput respects command concurrency", async () => {
 });
 
 test("runAgentUntilResult logs intended process tree termination after result", async () => {
-  if (process.platform === "win32") return;
-
   const tempDir = createTestSubDir("run");
   const pidFile = path.join(tempDir, "child.pid");
   const terminationPlans: TerminationPlan[] = [];

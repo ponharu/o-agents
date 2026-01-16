@@ -1,15 +1,18 @@
 import { spawn } from "node:child_process";
+import { basename } from "node:path";
 import { PromisePool } from "minimal-promise-pool";
 
 import type { AgentRunOptions, RunOptions } from "../types.ts";
 import { type LogContext, type Logger, logger } from "./logger.ts";
 import type { AgentResult } from "../agent/resultServer.ts";
 import { finalizeAgentProcess } from "./terminate.ts";
+import { resolveNpxCommand } from "./runtime.ts";
 
 const DEFAULT_OUTPUT_INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000;
 
 let nextCommandId = 0;
 let commandPromisePool: PromisePool | undefined;
+const npxIgnoreExistingCache = new Set<string>();
 export function setCommandConcurrency(value?: number): void {
   if (value === undefined) {
     commandPromisePool = undefined;
@@ -24,14 +27,57 @@ export async function runCommandWithOutput(
   options: RunOptions,
 ): Promise<{ stdout: string; stderr: string; combined: string; exitCode: number }> {
   const run = async () => {
-    const { exit, output } = spawnProcessWithLogging(logger, command, args, options);
-    const { code } = await exit;
-    if (code !== 0 && options.throwOnError) {
-      throw new Error(formatCommandFailureMessage(command, args, code, output.stderr));
+    const primary = await runOnce(command, args, options);
+    const packageKey = getNpxPackageKey(primary.normalized.args);
+    if (packageKey && primary.exitCode === 0) {
+      npxIgnoreExistingCache.delete(packageKey);
     }
-    return { ...output, exitCode: code ?? 0 };
+    if (
+      packageKey &&
+      primary.exitCode !== 0 &&
+      isNpxCommand(command) &&
+      primary.durationMs < 5000 &&
+      !npxIgnoreExistingCache.has(packageKey)
+    ) {
+      const fallbackNormalized = insertIgnoreExisting(primary.normalized);
+      if (fallbackNormalized.args !== primary.normalized.args) {
+        npxIgnoreExistingCache.add(packageKey);
+        logger.info("Retrying npx command with --ignore-existing.");
+        const { exit, output } = spawnProcessWithLogging(
+          logger,
+          fallbackNormalized.command,
+          fallbackNormalized.args,
+          options,
+        );
+        const { code } = await exit;
+        return {
+          ...output,
+          exitCode: code ?? 0,
+          durationMs: primary.durationMs,
+          normalized: fallbackNormalized,
+        };
+      }
+    }
+    return primary;
   };
-  return commandPromisePool ? commandPromisePool.runAndWaitForReturnValue(run) : run();
+  const result = commandPromisePool ? commandPromisePool.runAndWaitForReturnValue(run) : run();
+  const resolved = await result;
+  if (resolved.exitCode !== 0 && options.throwOnError) {
+    throw new Error(
+      formatCommandFailureMessage(
+        resolved.normalized.command,
+        resolved.normalized.args,
+        resolved.exitCode,
+        resolved.stderr,
+      ),
+    );
+  }
+  return {
+    stdout: resolved.stdout,
+    stderr: resolved.stderr,
+    combined: resolved.combined,
+    exitCode: resolved.exitCode,
+  };
 }
 
 export async function runAgentUntilResult(
@@ -251,6 +297,31 @@ function spawnProcessWithLogging(
       processGroupId,
     };
   });
+}
+
+async function runOnce(
+  command: string,
+  args: string[],
+  options: RunOptions,
+): Promise<{
+  stdout: string;
+  stderr: string;
+  combined: string;
+  exitCode: number;
+  durationMs: number;
+  normalized: { command: string; args: string[] };
+}> {
+  const normalized = normalizeNpxInvocation(command, args);
+  const startTime = Date.now();
+  const { exit, output } = spawnProcessWithLogging(
+    logger,
+    normalized.command,
+    normalized.args,
+    options,
+  );
+  const { code } = await exit;
+  const durationMs = Date.now() - startTime;
+  return { ...output, exitCode: code ?? 0, durationMs, normalized };
 }
 
 function spawnProcessWithTerminal(
@@ -556,4 +627,49 @@ function createLineBuffer(emitLine: (line: string) => void): {
       buffer = "";
     },
   };
+}
+
+function normalizeNpxInvocation(
+  command: string,
+  args: string[],
+): { command: string; args: string[] } {
+  if (!isNpxCommand(command)) {
+    return { command, args };
+  }
+  const resolved = resolveNpxCommand();
+  const npxPath = resolved.args[0];
+  if (!npxPath) {
+    throw new Error("Failed to resolve npx path.");
+  }
+  const normalizedArgs = [npxPath, ...args];
+  const npxOptions = normalizedArgs.slice(1);
+  if (!npxOptions.includes("--yes")) {
+    normalizedArgs.splice(1, 0, "--yes");
+  }
+  return { command: resolved.command, args: normalizedArgs };
+}
+
+function isNpxCommand(command: string): boolean {
+  return basename(command) === "npx";
+}
+
+function insertIgnoreExisting(normalized: { command: string; args: string[] }): {
+  command: string;
+  args: string[];
+} {
+  if (normalized.args.includes("--ignore-existing")) return normalized;
+  if (normalized.args.length === 0) return normalized;
+  const updated = [...normalized.args];
+  updated.splice(1, 0, "--ignore-existing");
+  return { command: normalized.command, args: updated };
+}
+
+function getNpxPackageKey(args: string[]): string | undefined {
+  if (args.length < 2) return undefined;
+  for (const arg of args.slice(1)) {
+    if (!arg.startsWith("-")) {
+      return arg;
+    }
+  }
+  return undefined;
 }

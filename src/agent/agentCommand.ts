@@ -3,28 +3,33 @@ import type { AgentTool } from "../types.ts";
 export function buildAgentCommand(
   tool: AgentTool,
   prompt: string,
-): { command: string; args: string[]; terminal?: boolean } {
+): {
+  commandArgs: [string, ...string[]];
+  terminal?: boolean;
+  versionCommandArgs: [string, ...string[]];
+} {
   switch (tool) {
     case "codex-cli":
       return {
-        command: "npx",
-        args: [
+        commandArgs: [
+          "npx",
           "--yes",
           "@openai/codex@latest",
           "exec",
           "--dangerously-bypass-approvals-and-sandbox",
           prompt,
         ],
+        versionCommandArgs: ["npx", "--yes", "@openai/codex@latest", "--version"],
       };
     case "octofriend":
       return {
-        command: "npx",
-        args: ["--yes", "octofriend@latest", "prompt", prompt],
+        commandArgs: ["npx", "--yes", "octofriend@latest", "prompt", prompt],
+        versionCommandArgs: ["npx", "--yes", "octofriend@latest", "version"],
       };
     case "claude-code":
       return {
-        command: "npx",
-        args: [
+        commandArgs: [
+          "npx",
           "--yes",
           "@anthropic-ai/claude-code@latest",
           "--dangerously-skip-permissions",
@@ -33,12 +38,13 @@ export function buildAgentCommand(
           "--print",
           prompt,
         ],
+        versionCommandArgs: ["npx", "--yes", "@anthropic-ai/claude-code@latest", "--version"],
       };
     case "gemini-cli":
       // "--prompt-interactive" is required to avoid https://github.com/google-gemini/gemini-cli/issues/16567
       return {
-        command: "npx",
-        args: [
+        commandArgs: [
+          "npx",
           "--yes",
           "@google/gemini-cli@latest",
           "--approval-mode",
@@ -46,6 +52,7 @@ export function buildAgentCommand(
           "--prompt-interactive",
           prompt,
         ],
+        versionCommandArgs: ["npx", "--yes", "@google/gemini-cli@latest", "--version"],
         terminal: true,
       };
   }

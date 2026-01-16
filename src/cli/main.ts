@@ -27,6 +27,7 @@ import { getErrorMessage } from "../utils/error.ts";
 import { formatRunTimestamp } from "../utils/time.ts";
 import { runCommandWithOutput, setCommandConcurrency } from "../utils/run.ts";
 import { hasNodeRuntime } from "../utils/runtime.ts";
+import { buildAgentCommand } from "../agent/agentCommand.ts";
 
 type WorkflowFunction = (
   context: {
@@ -63,6 +64,9 @@ type WorkflowRunResult = {
 };
 
 export async function main(): Promise<void> {
+  if (process.platform === "win32") {
+    throw new Error("Windows is not supported. Use WSL, macOS, or Linux.");
+  }
   if (!hasNodeRuntime()) {
     throw new Error("Node.js is required to run agents via npx.");
   }
@@ -138,7 +142,7 @@ export async function main(): Promise<void> {
         results,
         mainTool: mainSpec.tool,
       });
-      printRunSummaryList(results);
+      await printRunSummaryList(results);
     } else {
       logger.error("No workflow runs completed; nothing to compare or summarize.");
       overallExitCode = 1;
@@ -552,17 +556,36 @@ function validateWorkflowParams(rawParams: unknown, paramsSchema?: ZodTypeAny): 
   return paramsSchema.parse(rawParams ?? {});
 }
 
-function printRunSummaryList(results: WorkflowRunResult[]): void {
+async function printRunSummaryList(results: WorkflowRunResult[]): Promise<void> {
   logger.info("Run summary:");
-  results.forEach((result, index) => {
+  const versions = await Promise.all(results.map((result) => resolveAgentVersion(result.tool)));
+  for (const [index, result] of results.entries()) {
+    const version = versions[index];
     logger.info(`  ${index + 1}. agent=${result.tool}`);
     logger.info(`     workflow=${result.workflowPath || "N/A"}`);
     logger.info(`     log=${result.logPath}`);
+    logger.info(`     version=${version ?? "unknown"}`);
     logger.info(`     branch=${result.branchName ?? "N/A"}`);
     logger.info(`     pr=${result.pullRequestUrl ?? "N/A"}`);
     logger.info(`     exit=${result.exitCode}`);
     if (result.error) {
       logger.info(`     error=${result.error}`);
     }
+  }
+}
+
+async function resolveAgentVersion(tool: AgentTool): Promise<string | undefined> {
+  const command = buildAgentCommand(tool, "");
+  const [executable, ...args] = command.versionCommandArgs;
+  const versionResult = await runCommandWithOutput(executable, args, {
+    cwd: process.cwd(),
+    throwOnError: false,
   });
+  const combined = `${versionResult.stdout}\n${versionResult.stderr}`;
+  return extractVersionNumber(combined);
+}
+
+function extractVersionNumber(text: string): string | undefined {
+  const match = text.match(/\b\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?\b/);
+  return match?.[0];
 }

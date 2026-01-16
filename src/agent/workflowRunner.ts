@@ -83,6 +83,7 @@ export async function runNonInteractiveAgent<T>(
     try {
       await ensureTemporaryAgentInstructionsApplied({ cwd });
       const agentCommand = buildAgentCommand(tool, resolvedPrompt);
+      const [agentExecutable, ...agentExecArgs] = agentCommand.commandArgs;
       const agentRunOptions: AgentRunOptions = {
         stream: true,
         cwd,
@@ -90,8 +91,8 @@ export async function runNonInteractiveAgent<T>(
         agentGracePeriodMs: 5000,
       };
       const result = await runAgentUntilResult(
-        agentCommand.command,
-        agentCommand.args,
+        agentExecutable,
+        agentExecArgs,
         resultServer.waitForResult,
         agentRunOptions,
       );

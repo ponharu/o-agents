@@ -1,4 +1,4 @@
-import { execSync, spawnSync } from "node:child_process";
+import { execSync } from "node:child_process";
 import { setTimeout } from "node:timers/promises";
 
 import type { TerminationPlan } from "../types.ts";
@@ -89,12 +89,6 @@ function executeTerminationStrategy(
   logger: Logger,
 ): void {
   switch (plan.strategy) {
-    case "windows":
-      if (plan.pid) {
-        logger.info(`Terminating Windows process tree for pid ${plan.pid} with ${plan.signal}.`);
-        terminateWindowsProcessTree(plan.pid);
-      }
-      break;
     case "darwin-tree":
       if (plan.pid && plan.descendants) {
         logger.info(
@@ -262,9 +256,6 @@ function buildTerminationPlan(
   if (!pid) {
     return { mode, platform, signal, strategy: "no-pid" };
   }
-  if (platform === "win32") {
-    return { mode, platform, signal, pid, strategy: "windows" };
-  }
   if (processGroupId) {
     return { mode, platform, signal, pid, processGroupId, strategy: "process-group" };
   }
@@ -284,8 +275,4 @@ function formatMockTerminationPlan(plan: TerminationPlan): string {
     return `${base} processGroupId=${plan.processGroupId ?? "unknown"}`;
   }
   return base;
-}
-
-function terminateWindowsProcessTree(pid: number): void {
-  spawnSync("taskkill", ["/PID", `${pid}`, "/T", "/F"], { stdio: "ignore" });
 }
