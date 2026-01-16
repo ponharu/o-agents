@@ -7,7 +7,8 @@ export const RESULT_DELIVERY_INSTRUCTION = "{RESULT_DELIVERY_INSTRUCTION}";
 
 export function buildPlanPrompt({ issueData }: { issueData: IssueData }): string {
   return `
-Create an implementation plan for modifying files in the current repository to resolve the request below. Return the plan as markdown content following the response instructions appended to the end of this prompt.
+Create an implementation plan to modify files in the current repository to resolve the request below.
+Then return the plan as markdown content following the response instructions appended to the end of this prompt.
 
 Request:
 ~~~~yaml
@@ -23,7 +24,7 @@ ${YAML.stringify(
   
 Requirements:
 - Prioritize the most recent comment (at the bottom of the comments list) over the issue body and older comments when interpreting the request.
-- Create a plan only; do not modify any files.
+- Produce a plan only; do not modify any files.
 - Find and thoroughly read all relevant files to understand the current implementation.
 - If external libraries or APIs are required:
   - Search for their latest documentation.
@@ -38,7 +39,8 @@ ${RESULT_DELIVERY_INSTRUCTION}`.trim();
 
 export function buildImplementationPrompt({ plan }: { plan: string }): string {
   return `
-Implement the following plan on the current branch and return the change summary as markdown content.
+Implement the following plan on the current branch.
+Then return the change summary as markdown content.
 
 Plan:
 ~~~~md
@@ -55,7 +57,8 @@ ${RESULT_DELIVERY_INSTRUCTION}`.trim();
 
 export function buildReviewPrompt({ headBranch }: { headBranch: string }): string {
   return `
-Review the changes from the current branch compared to the \`${headBranch}\` branch. Return the review comments as a JSON array following the response instructions appended to the end of this prompt.
+Review the changes in the current branch compared to \`${headBranch}\`.
+Then return the review comments as a JSON array following the response instructions appended to the end of this prompt.
 
 ${RESULT_DELIVERY_INSTRUCTION}`.trim();
 }
@@ -66,7 +69,8 @@ export function buildReviewResolutionPrompt({
   reviewComments: unknown[];
 }): string {
   return `
-Address the review comments below. Return a response to each comment as a JSON array following the response instructions appended to the end of this prompt.
+Address the review comments below.
+Then return a JSON array of responses, one per comment, following the response instructions appended to the end of this prompt.
 
 Review comments:
 ~~~~yaml
@@ -74,7 +78,7 @@ ${YAML.stringify(reviewComments, yamlStringifyOptions).trim()}
 ~~~~
 
 Requirements:
-- Carefully consider each review comment and determine if it is reasonable and improves the code quality.
+- Carefully consider each review comment and determine if it is reasonable and improves code quality.
 - If a comment is not reasonable or does not provide value, decline it with a clear explanation.
 - Only implement changes for comments that you agree with.
 - Do not run tests.
@@ -92,8 +96,9 @@ export function buildTestFixPrompt({
   testOutput: string;
 }): string {
   return `
-The changes on the current branch compared to the \`${headBranch}\` branch have caused test failures.
-Fix the failing tests based on the provided output below.
+The changes on the current branch compared to \`${headBranch}\` caused test failures.
+Fix the failing tests based on the output below.
+Then return the change summary as markdown content.
 
 Test output:
 ~~~~
@@ -102,6 +107,21 @@ ${testOutput}
 
 Requirements:
 - Write or update test code and apply any necessary production code fixes; do not run tests.
+- Commit your changes with a conventional commit prefix: feat|fix|perf|refactor|test|build|chore|ci|docs|style.
+- Push the current branch to origin.
+
+${RESULT_DELIVERY_INSTRUCTION}`.trim();
+}
+
+export function buildRefactoringPrompt({ headBranch }: { headBranch: string }): string {
+  return `
+The changes on the current branch compared to \`${headBranch}\` may have reduced code quality.
+Review the changes and related code, then refactor to improve quality.
+Then return the change summary as markdown content.
+
+Requirements:
+- Reduce duplication and redundancy.
+- Restructure files to improve cohesion and reduce coupling.
 - Commit your changes with a conventional commit prefix: feat|fix|perf|refactor|test|build|chore|ci|docs|style.
 - Push the current branch to origin.
 
@@ -122,10 +142,10 @@ export function buildComparePullRequestsPrompt({
 }): string {
   return `
 Compare the pull requests below and select the best implementation based on the rubric.
-If any improvements from other PRs are worth integrating, move to the worktree directory of the best PR, manually apply the improvements, commit, and push the updates.
-Finally, return a JSON response with the best PR URL (or "N/A" if none are acceptable) and a brief reason following the response instructions appended to the end of this prompt.
+If any improvements from other PRs are worth integrating, move to the best PR's worktree, manually apply the improvements, commit, and push the updates.
+Then return a JSON response with the best PR URL (or "N/A" if none are acceptable) and a brief reason following the response instructions appended to the end of this prompt.
 
-Rubric (prioritize in order):
+Rubric (in priority order):
 1. Correctness: Fully addresses the issue request without introducing bugs.
 2. Simplicity: Reduces overall codebase size by eliminating redundancy and unnecessary code.
 3. Code quality: Maintainable, readable, and follows project conventions.
