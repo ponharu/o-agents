@@ -19,7 +19,7 @@ test(
         tool: "gemini-cli",
         cwd: process.cwd(),
         prompt: [
-          "Print exactly the single word Hi on its own line.",
+          "Print the word hello with the first letter uppercase and the rest lowercase on its own line.",
           "Then follow the response delivery instruction and write DONE to the response file.",
           RESULT_DELIVERY_INSTRUCTION,
         ].join("\n"),
@@ -27,7 +27,7 @@ test(
     });
 
     const logContents = await readFile(logPath, "utf8");
-    expect(logContents).toContain("Hi");
+    expect(logContents).toContain("Hello");
   },
   { timeout: TEST_TIMEOUT },
 );
