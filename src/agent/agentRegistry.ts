@@ -61,6 +61,12 @@ const BUILTIN_AGENTS: AgentDefinition[] = [
     aliases: ["octo"],
     versionCmd: ["npx", "--yes", "octofriend@latest", "version"],
   },
+  {
+    name: "opencode-ai",
+    cmd: ["npx", "--yes", "opencode-ai@latest", "run"],
+    aliases: ["opencode"],
+    versionCmd: ["npx", "--yes", "opencode-ai@latest", "--version"],
+  },
 ];
 
 export function createAgentRegistry(config?: OAgentsConfig): AgentRegistry {

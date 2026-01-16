@@ -11,12 +11,13 @@ It fetches the issue/PR via `gh`, creates a branch, runs the selected agent work
 - `gh` authenticated to the target repo
 - One of the supported agents:
 
-| Agent                       | Alias    | Status                                                                       |
-| --------------------------- | -------- | ---------------------------------------------------------------------------- |
-| `@openai/codex`             | `codex`  | Stable                                                                       |
-| `@anthropic-ai/claude-code` | `claude` | Stable                                                                       |
-| `@google/gemini-cli`        | `gemini` | Unstable ([issue](https://github.com/google-gemini/gemini-cli/issues/16567)) |
-| `octofriend`                | `octo`   | Unstable                                                                     |
+| Agent                       | Alias      | Status                                                                       |
+| --------------------------- | ---------- | ---------------------------------------------------------------------------- |
+| `@openai/codex`             | `codex`    | Stable                                                                       |
+| `@anthropic-ai/claude-code` | `claude`   | Stable                                                                       |
+| `@google/gemini-cli`        | `gemini`   | Unstable ([issue](https://github.com/google-gemini/gemini-cli/issues/16567)) |
+| `octofriend`                | `octo`     | Unstable                                                                     |
+| `opencode-ai`               | `opencode` | Stable                                                                       |
 
 ## Installation
 
@@ -123,6 +124,11 @@ versionCmd = ["npx", "--yes", "@google/gemini-cli@latest", "--version"]
 cmd = ["npx", "--yes", "octofriend@latest", "prompt"]
 aliases = ["octo"]
 versionCmd = ["npx", "--yes", "octofriend@latest", "version"]
+
+[agents.opencode-ai]
+cmd = ["npx", "--yes", "opencode-ai@latest", "run"]
+aliases = ["opencode"]
+versionCmd = ["npx", "--yes", "opencode-ai@latest", "--version"]
 ```
 
 </details>

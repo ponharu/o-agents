@@ -87,7 +87,7 @@ test("parseArgs accepts multiple compare flags", () => {
 test("parseArgs rejects typos in agent tool names", () => {
   const argv = ["node", "o-agents", "--target", "123", "--main", "codexx"];
   expect(() => parseArgs(argv)).toThrow(
-    'Unknown agent tool "codexx". Expected one of: codex-cli, claude-code, gemini-cli, octofriend.',
+    'Unknown agent tool "codexx". Expected one of: codex-cli, claude-code, gemini-cli, octofriend, opencode-ai.',
   );
 });
 
