@@ -1,17 +1,37 @@
-import type { AgentTool, IssueData } from "o-agents";
 import {
   buildImplementationPrompt,
   buildPlanPrompt,
   buildPullRequestBody,
+  buildRefactoringPrompt,
   buildReviewPrompt,
   buildReviewResolutionPrompt,
+  buildTestFixPrompt,
   createPullRequest,
   ensureCommitAndPushChanges,
+  logger,
+  runCommandWithOutput,
   runNonInteractiveAgent,
 } from "o-agents";
+import type { AgentTool, IssueData } from "o-agents";
+import { z } from "zod";
 import { reviewCommentSchema, reviewResponseSchema } from "./schemas.ts";
 import { runNonInteractiveAgents } from "../src/agent/workflowRunner.ts";
 
+export const paramsSchema = z.object({
+  testCommand: z
+    .preprocess(
+      (value) => {
+        if (typeof value === "string") {
+          return value.trim().split(/\s+/).filter(Boolean);
+        }
+        return value;
+      },
+      z.array(z.string().min(1)).min(1),
+    )
+    .optional(),
+});
+
+type WorkflowParams = z.infer<typeof paramsSchema>;
 type WorkflowContext = {
   tool: AgentTool;
   issueData: IssueData;
@@ -22,14 +42,12 @@ type WorkflowContext = {
 
 const REVIEW_AGENTS: AgentTool[] = ["codex-cli", "claude-code", "gemini-cli"];
 const MAX_REVIEW_FIX_ATTEMPTS = 3;
+const MAX_TEST_FIX_ATTEMPTS = 5;
 
-export default async function runWorkflow({
-  tool,
-  issueData,
-  baseBranch,
-  headBranch,
-  cwd,
-}: WorkflowContext): Promise<number> {
+export default async function runWorkflow(
+  { tool, issueData, baseBranch, headBranch, cwd }: WorkflowContext,
+  params: WorkflowParams,
+): Promise<number> {
   const plan = await runNonInteractiveAgent({
     tool,
     prompt: buildPlanPrompt({ issueData }),
@@ -47,6 +65,12 @@ export default async function runWorkflow({
     buildPullRequestBody(issueData, plan, changeSummary),
     { cwd },
   );
+  await runNonInteractiveAgent({
+    tool,
+    prompt: buildRefactoringPrompt({ headBranch }),
+    cwd,
+  });
+
   for (let count = 0; count < MAX_REVIEW_FIX_ATTEMPTS; count++) {
     const reviewCommentsList = await runNonInteractiveAgents({
       tools: REVIEW_AGENTS,
@@ -68,5 +92,25 @@ export default async function runWorkflow({
     await ensureCommitAndPushChanges("chore: apply changes from review resolution agent", { cwd });
   }
 
-  return 0;
+  let lastExitCode = 0;
+  const [command, ...args] = params.testCommand ?? [];
+  if (!command) {
+    logger.info("No test command provided, skipping tests...");
+    return 0;
+  }
+  for (let count = 0; count < MAX_TEST_FIX_ATTEMPTS; count++) {
+    const { combined, exitCode } = await runCommandWithOutput(command, args, { cwd });
+    lastExitCode = exitCode;
+    if (exitCode === 0) {
+      return 0;
+    }
+    logger.info("Tests failed, running test-fixing agent...");
+    await runNonInteractiveAgent({
+      tool,
+      prompt: buildTestFixPrompt({ headBranch, testOutput: combined }),
+      cwd,
+    });
+    await ensureCommitAndPushChanges("chore: apply changes from test-fixing agent", { cwd });
+  }
+  return lastExitCode || 1;
 }

@@ -4,6 +4,7 @@ export { createPullRequest, ensureCommitAndPushChanges } from "./git/git.ts";
 export {
   buildImplementationPrompt,
   buildPlanPrompt,
+  buildRefactoringPrompt,
   buildReviewPrompt,
   buildReviewResolutionPrompt,
   buildTestFixPrompt,
