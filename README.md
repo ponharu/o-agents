@@ -38,7 +38,7 @@ o-agents --target 123 --main codex o-agents/workflowWithTests.ts ./params.json
 o-agents --target 123 --main codex o-agents/workflowWithTests.ts --compare claude o-agents/workflowWithTests.ts
 o-agents --target 123 --main codex --concurrency 2 --compare claude
 o-agents --target 123 --main codex --command-concurrency 1 --compare claude
-o-agents --target 123 --main codex --init "npx @antfu/ni@latest"
+o-agents --target 123 --main codex --init "npx --yes @antfu/ni@latest"
 o-agents --target https://github.com/org/repo/issues/123 --main codex
 ```
 
@@ -55,7 +55,7 @@ Use `--concurrency` to control how many workflows can run at the same time (main
 Use `--command-concurrency` to cap how many external commands started by workflows (like tests/builds) can run at once.
 If you omit `--command-concurrency`, there is no extra limit beyond how many workflows are running.
 Comparison happens only when at least two PR URLs are created.
-Initialization runs once per worktree using `--init` (default: `npx @antfu/ni@latest`).
+Initialization runs once per worktree using `--init` (default: `npx --yes @antfu/ni@latest`).
 
 Use the short agent names: `codex`, `claude`, `gemini`, `octo`.
 If `--main` omits workflow/params entirely, it defaults to `o-agents/workflowNoTest.ts`.
