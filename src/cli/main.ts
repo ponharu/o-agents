@@ -432,6 +432,7 @@ async function comparePullRequestsIfNeeded(options: {
     const body = buildComparisonCommentBody({
       bestPrUrl: comparison.bestPrUrl,
       reason: comparison.reason,
+      results,
     });
     try {
       const result = await upsertComparisonComment({
@@ -456,9 +457,19 @@ async function comparePullRequestsIfNeeded(options: {
   }
 }
 
-function buildComparisonCommentBody(options: { bestPrUrl?: string; reason?: string }): string {
+function buildComparisonCommentBody(options: {
+  bestPrUrl?: string;
+  reason?: string;
+  results: WorkflowRunResult[];
+}): string {
   const winner = (options.bestPrUrl ?? "").trim();
-  const winnerText = winner && winner !== "N/A" ? winner : "No acceptable PR selected";
+  let winnerText = "No acceptable PR selected";
+  if (winner && winner !== "N/A") {
+    const agent = options.results.find(
+      (result) => (result.pullRequestUrl ?? "").trim() === winner,
+    )?.tool;
+    winnerText = agent ? `${winner} (agent: ${agent})` : winner;
+  }
   const reasoning = (options.reason ?? "").trim() || "No reasoning provided.";
   return `${COMPARE_COMMENT_MARKER}
 ## O-Agents Comparison Result
