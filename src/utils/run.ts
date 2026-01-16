@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { AsyncResource } from "node:async_hooks";
 import { basename } from "node:path";
 import { PromisePool } from "minimal-promise-pool";
 
@@ -9,6 +10,9 @@ import { finalizeAgentProcess } from "./terminate.ts";
 import { resolveNpxCommand } from "./runtime.ts";
 
 const DEFAULT_OUTPUT_INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000;
+// Bun.Terminal data callbacks stall when the terminal is created inside AsyncLocalStorage.
+// Keep a module-scoped AsyncResource so terminal I/O stays active under logger contexts.
+const terminalResource = new AsyncResource("terminal-runner");
 
 let nextCommandId = 0;
 let commandPromisePool: PromisePool | undefined;
@@ -348,6 +352,7 @@ function spawnProcessWithTerminal(
   const decoder = new TextDecoder();
   const writeChunk = createPrefixedChunkWriter(logger, prefix, context);
   let lastLine = "";
+  let loggedOutput = false;
   const recentLines: string[] = [];
   const recentLineSet = new Set<string>();
   const rememberLine = (line: string) => {
@@ -368,68 +373,79 @@ function spawnProcessWithTerminal(
     lastLine = normalizedLine;
     rememberLine(normalizedLine);
     writeChunk(normalizedLine, streamToConsole, false);
+    loggedOutput = true;
   });
 
-  const terminal = new Bun.Terminal({
-    cols: 120,
-    rows: 40,
-    data(_terminal, data) {
-      if (data.byteLength > 0) {
-        onOutputActivity?.();
-      }
-      const text = decoder.decode(data, { stream: true });
-      if (!text) return;
-      output.stdout += text;
-      output.combined += text;
-      const normalizedChunk = normalizeTerminalChunk(text);
-      if (normalizedChunk) {
-        stdoutBuffer.write(normalizedChunk);
-      }
-    },
-  });
-
-  const detached = spawnOptions?.detached ?? false;
-  const child = Bun.spawn([command, ...args], {
-    cwd: options.cwd,
-    env: { ...process.env, ...options.env },
-    terminal,
-    detached,
-  });
-
-  const exit = child.exited.then((exitCode) => {
-    const flushText = decoder.decode();
-    if (flushText) {
-      output.stdout += flushText;
-      output.combined += flushText;
-      const normalizedChunk = normalizeTerminalChunk(flushText);
-      if (normalizedChunk) {
-        stdoutBuffer.write(normalizedChunk);
-      }
-    }
-    stdoutBuffer.flush();
-    closeTerminalSafely(terminal);
-    return { code: exitCode };
-  });
-
-  const processGroupId = detached ? (child.pid ?? undefined) : undefined;
-  return {
-    child: {
-      kill: (signal?: NodeJS.Signals) => {
-        child.kill(signal);
-        return true;
+  return terminalResource.runInAsyncScope(() => {
+    const terminal = new Bun.Terminal({
+      cols: 180,
+      rows: 60,
+      data(_terminal, data) {
+        if (data.byteLength > 0) {
+          onOutputActivity?.();
+        }
+        const text = decoder.decode(data, { stream: true });
+        if (!text) return;
+        output.stdout += text;
+        output.combined += text;
+        const normalizedChunk = normalizeTerminalChunk(text);
+        if (normalizedChunk) {
+          stdoutBuffer.write(normalizedChunk);
+        }
       },
-      pid: child.pid,
-      get exitCode() {
-        return child.exitCode;
+    });
+    terminal.ref();
+    terminal.setRawMode(true);
+
+    const detached = spawnOptions?.detached ?? false;
+    const child = Bun.spawn([command, ...args], {
+      cwd: options.cwd,
+      env: { ...process.env, ...options.env },
+      terminal,
+      detached,
+    });
+
+    const exit = (async () => {
+      const exitCode = await child.exited;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      const flushText = decoder.decode();
+      if (flushText) {
+        output.stdout += flushText;
+        output.combined += flushText;
+        const normalizedChunk = normalizeTerminalChunk(flushText);
+        if (normalizedChunk) {
+          stdoutBuffer.write(normalizedChunk);
+        }
+      }
+      stdoutBuffer.flush();
+      if (!loggedOutput && output.stdout) {
+        writeChunk(output.stdout, streamToConsole, false);
+        loggedOutput = true;
+      }
+      closeTerminalSafely(terminal);
+      return { code: exitCode };
+    })();
+
+    const processGroupId = detached ? (child.pid ?? undefined) : undefined;
+    return {
+      child: {
+        kill: (signal?: NodeJS.Signals) => {
+          child.kill(signal);
+          return true;
+        },
+        pid: child.pid,
+        get exitCode() {
+          return child.exitCode;
+        },
+        get killed() {
+          return child.exitCode !== null;
+        },
       },
-      get killed() {
-        return child.exitCode !== null;
-      },
-    },
-    output,
-    exit,
-    processGroupId,
-  };
+      output,
+      exit,
+      processGroupId,
+    };
+  });
 }
 
 function normalizeTerminalChunk(text: string): string {
